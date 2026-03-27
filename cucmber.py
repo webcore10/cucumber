@@ -1,6 +1,6 @@
 import asyncio
 import random
-import aiosqlite
+
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery
 from aiogram import Bot, Dispatcher, F
@@ -18,7 +18,7 @@ bot = Bot(
 )
 
 dp = Dispatcher()
-DB_NAME = "data/cucumbers.db"
+DB_NAME = "cucumbers.db"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
 
