@@ -1,7 +1,6 @@
 import asyncio
 import random
 from sched import scheduler
-import aiosqlite
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery
 from aiogram import Bot, Dispatcher, F
@@ -19,7 +18,7 @@ bot = Bot(
 )
 
 dp = Dispatcher()
-DB_NAME = "cucumbers.db"
+DB_NAME = "data.json"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
 
