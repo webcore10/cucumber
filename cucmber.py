@@ -1,6 +1,6 @@
 import asyncio
 import random
-
+import aiosqlite
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery
 from aiogram import Bot, Dispatcher, F
