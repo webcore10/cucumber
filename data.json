@@ -1,0 +1,416 @@
+[
+  {
+    "user_id": 5971748042,
+    "chat_id": 5971748042,
+    "size": 8,
+    "last_grow": "2026-03-20T07:51:15.522732",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5971748042,
+    "chat_id": -5181756137,
+    "size": 1,
+    "last_grow": "2026-03-17T07:08:56.582120",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 919511872,
+    "chat_id": -5181756137,
+    "size": 6,
+    "last_grow": "2026-03-17T07:09:09.200533",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 919511872,
+    "chat_id": -1003373140696,
+    "size": 137,
+    "last_grow": "2026-03-25T16:49:58.477336",
+    "last_box": "2026-03-26T20:28:00.395045",
+    "name": null,
+    "last_tax": "2026-03-23T17:32:30.996704"
+  },
+  {
+    "user_id": 5900990229,
+    "chat_id": -1003373140696,
+    "size": 353,
+    "last_grow": "2026-03-27T22:31:10.088057",
+    "last_box": "2026-03-27T22:31:00.485614",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6369527573,
+    "chat_id": -1003373140696,
+    "size": 298,
+    "last_grow": "2026-03-24T20:13:00.942112",
+    "last_box": "2026-03-24T20:13:05.634641",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 1218395739,
+    "chat_id": -1003373140696,
+    "size": 327,
+    "last_grow": "2026-03-25T20:57:50.818743",
+    "last_box": "2026-03-26T17:30:36.366313",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6607946225,
+    "chat_id": -1003373140696,
+    "size": 0,
+    "last_grow": "2026-03-25T20:17:18.698659",
+    "last_box": "2026-03-25T20:17:21.099432",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 919511872,
+    "chat_id": 919511872,
+    "size": 3,
+    "last_grow": "2026-03-17T21:12:21.833184",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5491421650,
+    "chat_id": 5491421650,
+    "size": 10,
+    "last_grow": null,
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5491421650,
+    "chat_id": -5181756137,
+    "size": 50,
+    "last_grow": "2026-03-17T21:46:53.566058",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5364409182,
+    "chat_id": -1003373140696,
+    "size": 0,
+    "last_grow": "2026-03-17T23:56:41.723690",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5971748042,
+    "chat_id": -1003373140696,
+    "size": 48,
+    "last_grow": "2026-03-18T00:28:08.975582",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6326187902,
+    "chat_id": 6326187902,
+    "size": 69,
+    "last_grow": "2026-03-27T00:02:39.585708",
+    "last_box": "2026-03-27T00:02:38.943264",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 1218395739,
+    "chat_id": 1218395739,
+    "size": 20,
+    "last_grow": "2026-03-18T07:43:10.768116",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 7579536469,
+    "chat_id": -1003373140696,
+    "size": 1202,
+    "last_grow": "2026-03-26T17:34:59.109733",
+    "last_box": "2026-03-26T16:45:09.101510",
+    "name": null,
+    "last_tax": "2026-03-26T16:44:48.792957"
+  },
+  {
+    "user_id": 6607946225,
+    "chat_id": -1001920646337,
+    "size": 553,
+    "last_grow": "2026-03-20T10:49:51.596398",
+    "last_box": "2026-03-20T23:19:52.842864",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 919511872,
+    "chat_id": -1001920646337,
+    "size": 5,
+    "last_grow": "2026-03-19T10:26:41.211848",
+    "last_box": "2026-03-19T22:21:41.122765",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5900990229,
+    "chat_id": -1001920646337,
+    "size": 15,
+    "last_grow": "2026-03-20T10:31:18.726558",
+    "last_box": "2026-03-20T23:48:23.341380",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6369527573,
+    "chat_id": -1001920646337,
+    "size": 63,
+    "last_grow": "2026-03-20T11:12:47.584695",
+    "last_box": "2026-03-20T11:12:34.821485",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 991909522,
+    "chat_id": -1002876526807,
+    "size": 117,
+    "last_grow": "2026-03-19T10:29:29.550718",
+    "last_box": "2026-03-19T10:29:20.178527",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 7579536469,
+    "chat_id": -1002876526807,
+    "size": 94,
+    "last_grow": "2026-03-19T10:30:37.110530",
+    "last_box": "2026-03-19T10:30:31.446391",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 571839935,
+    "chat_id": -1001920646337,
+    "size": 4,
+    "last_grow": "2026-03-19T10:31:36.372301",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5539641131,
+    "chat_id": -1002876526807,
+    "size": 3,
+    "last_grow": "2026-03-19T10:42:16.831663",
+    "last_box": "2026-03-19T10:42:09.995171",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6391303455,
+    "chat_id": -1002876526807,
+    "size": 0,
+    "last_grow": "2026-03-19T10:47:02.536490",
+    "last_box": "2026-03-19T10:46:55.445834",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5364409182,
+    "chat_id": -1001920646337,
+    "size": 0,
+    "last_grow": "2026-03-19T10:51:42.140694",
+    "last_box": "2026-03-19T12:31:59.097742",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5515717767,
+    "chat_id": -1003373140696,
+    "size": 169,
+    "last_grow": "2026-03-25T15:52:46.595813",
+    "last_box": "2026-03-22T11:37:25.209256",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5710686998,
+    "chat_id": -1002876526807,
+    "size": 0,
+    "last_grow": "2026-03-19T11:22:39.845788",
+    "last_box": "2026-03-19T11:22:20.856366",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5900990229,
+    "chat_id": -1003347478088,
+    "size": 37,
+    "last_grow": "2026-03-19T13:08:18.045653",
+    "last_box": "2026-03-19T17:08:19.019013",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6607946225,
+    "chat_id": -1003347478088,
+    "size": 13,
+    "last_grow": "2026-03-19T13:08:47.922384",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5539563098,
+    "chat_id": -1001920646337,
+    "size": 29,
+    "last_grow": null,
+    "last_box": "2026-03-19T13:44:02.253107",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 6154592410,
+    "chat_id": 6154592410,
+    "size": 29,
+    "last_grow": "2026-03-19T15:00:53.010360",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 1284933343,
+    "chat_id": -1003347478088,
+    "size": 35,
+    "last_grow": "2026-03-19T16:20:59.717960",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5561590004,
+    "chat_id": -1003347478088,
+    "size": 47,
+    "last_grow": "2026-03-20T15:09:00.000980",
+    "last_box": "2026-03-19T17:10:29.477302",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 511624107,
+    "chat_id": -1003373140696,
+    "size": 274,
+    "last_grow": "2026-03-27T22:31:00.421653",
+    "last_box": "2026-03-27T22:31:00.540174",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5561590004,
+    "chat_id": -1003483920992,
+    "size": 61,
+    "last_grow": "2026-03-26T14:47:12.258181",
+    "last_box": "2026-03-26T14:47:12.057363",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 8542824597,
+    "chat_id": -1003483920992,
+    "size": 155,
+    "last_grow": "2026-03-26T14:47:12.179969",
+    "last_box": "2026-03-26T19:28:10.096677",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5459924474,
+    "chat_id": -1002941608453,
+    "size": 30,
+    "last_grow": "2026-03-19T17:15:59.246649",
+    "last_box": "2026-03-19T17:16:03.429245",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5459924474,
+    "chat_id": -1002528990258,
+    "size": 25,
+    "last_grow": "2026-03-26T20:06:37.856442",
+    "last_box": "2026-03-26T20:06:43.042267",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 2072001907,
+    "chat_id": -1002528990258,
+    "size": 256,
+    "last_grow": "2026-03-26T20:20:24.597280",
+    "last_box": "2026-03-26T20:20:28.894869",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5813695330,
+    "chat_id": -1002021028943,
+    "size": 51,
+    "last_grow": "2026-03-25T15:52:46.018611",
+    "last_box": "2026-03-25T15:59:20.481949",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 1056968350,
+    "chat_id": -1002021028943,
+    "size": 134,
+    "last_grow": "2026-03-24T21:25:42.322403",
+    "last_box": "2026-03-25T15:59:54.075235",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5396638157,
+    "chat_id": -1002021028943,
+    "size": 185,
+    "last_grow": "2026-03-24T21:25:27.413485",
+    "last_box": "2026-03-25T15:59:31.894828",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5396638157,
+    "chat_id": 5396638157,
+    "size": 50,
+    "last_grow": "2026-03-21T10:18:14.784064",
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5144038809,
+    "chat_id": -1002528990258,
+    "size": 109,
+    "last_grow": "2026-03-26T20:20:34.710444",
+    "last_box": "2026-03-26T20:20:43.082628",
+    "name": null,
+    "last_tax": null
+  },
+  {
+    "user_id": 5601077918,
+    "chat_id": -1002528990258,
+    "size": 0,
+    "last_grow": null,
+    "last_box": null,
+    "name": null,
+    "last_tax": null
+  }
+]
