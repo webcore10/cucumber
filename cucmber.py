@@ -1,24 +1,560 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
+import random
+
+from datetime import datetime, timedelta
+from aiogram.types import LabeledPrice, PreCheckoutQuery
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
+from aiogram.filters import Command
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
-bot = Bot(token=TOKEN)
+bot = Bot(
+    token=TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+
 dp = Dispatcher()
+DB_NAME = "data\cucumbers.db"
+provider_token = ""  # ПУСТАЯ СТРОКА!
 
-# Команда /start
-@dp.message(CommandStart())
-async def start_handler(message: types.Message):
-    await message.answer("Привет! Я эхо-бот 😊 Напиши что-нибудь.")
 
-# Эхо-обработчик
-@dp.message()
-async def echo_handler(message: types.Message):
-    await message.answer(message.text)
+# -------------------- ЛУТБОКС --------------------
+@dp.message(Command("box"))
+async def open_box(message: Message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
 
-# Запуск бота
+    await save_user_chat(user_id, chat_id)
+
+    # получаем время последнего открытия
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT last_box FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    last_box = row[0] if row else None
+
+    if last_box:
+        last_time = datetime.fromisoformat(last_box)
+        next_time = last_time + timedelta(hours=1)
+
+        if datetime.now() < next_time:
+            remaining = next_time - datetime.now()
+
+            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+
+            await message.answer(
+                f"⏳ {mention(message.from_user)}\n"
+                f"Ты уже открывал лутбокс!\n\n"
+                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
+                f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
+            )
+            return
+
+    # 🎲 выпадение без анимации
+    roll = random.randint(1, 100)
+
+    if roll <= 40:
+        reward = random.randint(1, 3)
+        rarity = "💩 Мусор"
+    elif roll <= 70:
+        reward = random.randint(4, 8)
+        rarity = "🟢 Обычный"
+    elif roll <= 90:
+        reward = random.randint(9, 15)
+        rarity = "🔵 Редкий"
+    elif roll <= 99:
+        reward = random.randint(16, 30)
+        rarity = "🟣 Эпик"
+    else:
+        reward = random.randint(50, 100)
+        rarity = "🟡 Легендарный"
+
+    # обновляем размер
+    size, _ = await get_user(user_id, chat_id)
+    size += reward
+
+    await update_size(user_id, chat_id, size)
+
+    # сохраняем время открытия
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET last_box=? WHERE user_id=? AND chat_id=?",
+            (datetime.now().isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+    # вывод
+    await message.answer(
+        f"🎁 {mention(message.from_user)} открыл лутбокс!\n\n"
+        f"✨ Редкость: {rarity}\n"
+        f"💰 Награда: +{reward} см\n\n"
+        f"📏 Теперь: {size} см"
+    )
+
+
+
+async def update_last_box(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET last_box=? WHERE user_id=? AND chat_id=?",
+            (datetime.now().isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+
+
+
+
+# -------------------- ПОКУПКА --------------------
+
+async def save_user_chat(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO user_chats (user_id, chat_id) VALUES (?, ?)",
+            (user_id, chat_id)
+        )
+        await db.commit()
+
+async def get_user_chat(user_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT chat_id FROM user_chats WHERE user_id=?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+
+
+@dp.message(Command("shop"))
+async def shop(message: Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💰 10 см — ⭐10", callback_data="buy_10")],
+            [InlineKeyboardButton(text="💰 50 см — ⭐45", callback_data="buy_50")],
+            [InlineKeyboardButton(text="💰 100 см — ⭐80", callback_data="buy_100")]
+        ]
+    )
+
+    await message.answer(
+        f"🛒 {mention(message.from_user)}\nВыбери покупку:",
+        reply_markup=kb
+    )
+
+
+@dp.callback_query(F.data.startswith("buy_"))
+async def buy_handler(call: CallbackQuery):
+    data = call.data
+
+    if data == "buy_10":
+        amount = 10
+        price = 10
+    elif data == "buy_50":
+        amount = 50
+        price = 45
+    elif data == "buy_100":
+        amount = 100
+        price = 80
+    else:
+        await call.answer("Ошибка")
+        return
+
+    prices = [LabeledPrice(label=f"{amount} см", amount=price)]
+
+    await bot.send_invoice(
+        chat_id=call.from_user.id,  # важно: в ЛС
+        title="Покупка огурца 🥒",
+        description=f"Ты покупаешь {amount} см",
+        payload=f"cucumber_{amount}",
+        provider_token="",  # ⭐ Stars = пусто
+        currency="XTR",
+        prices=prices,
+        start_parameter="cucumber-shop"
+    )
+
+    await call.answer("Проверь личные сообщения. Если ничего то нет, то сначала нажми кнопку START в личных сообщениях бота, а потом перейди к покупке в боте.")
+
+
+@dp.pre_checkout_query()
+async def pre_checkout(pre_checkout_q: PreCheckoutQuery):
+    await pre_checkout_q.answer(ok=True)
+
+
+@dp.message(F.successful_payment)
+async def successful_payment(message: Message):
+    payload = message.successful_payment.invoice_payload
+    amount = int(payload.split("_")[1])
+
+    user_id = message.from_user.id
+
+    # получаем группу
+    chat_id = await get_user_chat(user_id)
+
+    if not chat_id:
+        await message.answer("❗ Сначала поиграй в группе")
+        return
+
+    size, _ = await get_user(user_id, chat_id)
+    size += amount
+
+    await update_size(user_id, chat_id, size)
+
+    # сообщение в ЛС
+    await message.answer(
+        f"💰 Покупка успешна!\n+{amount} см"
+    )
+
+    # сообщение в группу
+    await bot.send_message(
+        chat_id,
+        f"💰 {mention(message.from_user)} купил {amount} см!\n"
+        f"Теперь: {size} см"
+    )
+
+# -------------------- НАЛОГ --------------------
+
+
+
+async def apply_tax(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT size, last_tax FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if not row:
+        return None
+
+    size, last_tax = row
+
+    if size < 1000:
+        return None
+
+    now = datetime.now()
+
+    if last_tax:
+        last_time = datetime.fromisoformat(last_tax)
+        if now - last_time < timedelta(days=1):
+            return None
+
+    # списываем налог
+    size -= 10
+    if size < 0:
+        size = 0
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET size=?, last_tax=? WHERE user_id=? AND chat_id=?",
+            (size, now.isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+    return size
+
+# -------------------- УТИЛИТЫ --------------------
+
+def mention(user):
+    name = user.full_name.replace("<", "").replace(">", "")
+    return f"<a href='tg://user?id={user.id}'>{name}</a>"
+# -------------------- БАЗА --------------------
+
+async def init_db():
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER,
+            chat_id INTEGER,
+            size INTEGER DEFAULT 0,
+            last_grow TEXT,
+            PRIMARY KEY(user_id, chat_id)
+        )
+        """)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_chats (
+            user_id INTEGER PRIMARY KEY,
+            chat_id INTEGER
+        )
+        """)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_chats (
+            user_id INTEGER PRIMARY KEY,
+            chat_id INTEGER
+        )
+        """)
+
+
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS fights (
+            chat_id INTEGER PRIMARY KEY,
+            challenger INTEGER,
+            amount INTEGER
+        )
+        """)
+
+        await db.commit()
+
+
+# -------------------- КОМАНДЫ --------------------
+
+async def set_commands(bot: Bot):
+    commands = [
+        BotCommand(command="start", description="Запуск"),
+        BotCommand(command="grow", description="Вырастить огурец 🌱"),
+        BotCommand(command="stats", description="Моя статистика 📊"),
+        BotCommand(command="top", description="Топ игроков 🏆"),
+        BotCommand(command="fight", description="Создать бой ⚔️"),
+        BotCommand(command="shop", description="Магазин 🛒"),
+        BotCommand(command="box", description="Открыть лутбокс 🎁"),
+    ]
+    await bot.set_my_commands(commands)
+
+
+@dp.message(Command("start"))
+async def start(message: Message):
+    await message.answer("🥒 Огуречный бот активирован!\nИспользуй /grow")
+
+
+# -------------------- БАЗА ФУНКЦИИ --------------------
+
+async def get_user(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT size, last_grow FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            await db.execute(
+                "INSERT INTO users (user_id, chat_id, size) VALUES (?, ?, 0)",
+                (user_id, chat_id)
+            )
+            await db.commit()
+            return 0, None
+
+        return row
+
+
+async def update_size(user_id, chat_id, size):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET size=? WHERE user_id=? AND chat_id=?",
+            (size, user_id, chat_id)
+        )
+        await db.commit()
+
+
+async def update_last_grow(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET last_grow=? WHERE user_id=? AND chat_id=?",
+            (datetime.now().isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+
+
+
+# -------------------- GROW --------------------
+
+@dp.message(Command("grow"))
+async def grow(message: Message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    await save_user_chat(user_id, chat_id)
+    size, last_grow = await get_user(user_id, chat_id)
+
+    if last_grow:
+        last_time = datetime.fromisoformat(last_grow)
+        next_time = last_time + timedelta(days=1)
+
+        if datetime.now() < next_time:
+            remaining = next_time - datetime.now()
+
+            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+
+            await message.answer(
+                f"⏳ {mention(message.from_user)}\n"
+                f"Ты уже выращивал сегодня!\n\n"
+                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
+                f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
+            )
+            return
+
+    growth = random.randint(1, 50)
+    size += growth
+
+    await update_size(user_id, chat_id, size)
+    await update_last_grow(user_id, chat_id)
+
+    new_size = await apply_tax(user_id, chat_id)
+
+    if new_size is not None:
+        await message.answer(
+            f"🌱 {mention(message.from_user)}\n"
+            f"+{growth} см\nТеперь: {size} см\n"
+            f"💸Вы платите налог на роскошь (-10 см)\n"
+            f"Теперь: {new_size} см"
+        )
+    else:
+        await message.answer(
+            f"🌱 {mention(message.from_user)}\n"
+            f"+{growth} см\nТеперь: {size} см"
+        )
+
+# -------------------- STATS --------------------
+
+@dp.message(Command("stats"))
+async def stats(message: Message):
+    size, _ = await get_user(message.from_user.id, message.chat.id)
+    await message.answer(
+        f"📊 {mention(message.from_user)}\n"
+        f"Твой огурец: {size} см"
+
+    )
+
+
+
+# -------------------- TOP --------------------
+
+@dp.message(Command("top"))
+async def top(message: Message):
+    chat_id = message.chat.id
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT user_id, size FROM users WHERE chat_id=? ORDER BY size DESC LIMIT 10",
+            (chat_id,)
+        )
+        rows = await cursor.fetchall()
+
+    text = "🏆 Топ огурцов:\n\n"
+
+    for i, (user_id, size) in enumerate(rows, 1):
+        member = await bot.get_chat_member(chat_id, user_id)
+        text += f"{i}. {mention(member.user)} — {size} см\n"
+
+    await message.answer(text)
+
+
+# -------------------- FIGHT --------------------
+
+@dp.message(Command("fight"))
+async def fight(message: Message):
+
+    try:
+        amount = int(message.text.split()[1])
+    except:
+        await message.answer("❗ Пример: /fight 10")
+        return
+
+    chat_id = message.chat.id
+    challenger = message.from_user.id
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("DELETE FROM fights WHERE chat_id=?", (chat_id,))
+        await db.execute(
+            "INSERT INTO fights (chat_id, challenger, amount) VALUES (?, ?, ?)",
+            (chat_id, challenger, amount)
+        )
+        await db.commit()
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⚔️ Сражаться", callback_data="fight")]
+        ]
+    )
+
+    await message.answer(
+        f"⚔️ {mention(message.from_user)} ищет соперника!\n"
+        f"Ставка: {amount} см",
+        reply_markup=kb
+
+    )
+
+
+# -------------------- CALLBACK FIGHT --------------------
+
+@dp.callback_query(F.data == "fight")
+async def fight_callback(callback: CallbackQuery):
+    chat_id = callback.message.chat.id
+    user_id = callback.from_user.id
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT challenger, amount FROM fights WHERE chat_id=?",
+            (chat_id,)
+        )
+        fight = await cursor.fetchone()
+
+    if not fight:
+        await callback.answer("Бой уже завершён")
+        return
+
+    challenger, amount = fight
+
+    if user_id == challenger:
+        await callback.answer("Нельзя драться с собой 😅")
+        return
+
+    # проверка размеров
+    c_size, _ = await get_user(challenger, chat_id)
+    u_size, _ = await get_user(user_id, chat_id)
+
+    if c_size < amount or u_size < amount:
+        await callback.answer("У кого-то не хватает см 😢")
+        return
+
+    winner = random.choice([challenger, user_id])
+    loser = challenger if winner == user_id else user_id
+
+    # обновление размеров
+    w_size, _ = await get_user(winner, chat_id)
+    l_size, _ = await get_user(loser, chat_id)
+
+    w_size += amount
+    l_size = max(0, l_size - amount)
+
+    await update_size(winner, chat_id, w_size)
+    await update_size(loser, chat_id, l_size)
+
+    # получаем пользователей
+    challenger_user = (await bot.get_chat_member(chat_id, challenger)).user
+    opponent_user = callback.from_user
+
+    winner_user = challenger_user if winner == challenger else opponent_user
+    loser_user = opponent_user if winner == challenger else challenger_user
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("DELETE FROM fights WHERE chat_id=?", (chat_id,))
+        await db.commit()
+
+    await callback.message.edit_text(
+        f"⚔️ Бой состоялся!\n\n"
+        f"🏆 Победитель: {mention(winner_user)}\n"
+        f"💀 Проигравший: {mention(loser_user)}\n"
+        f"Ставка: {amount} см"
+    )
+
+    await callback.answer("Бой завершён!")
+
+
+# -------------------- ЗАПУСК --------------------
+
 async def main():
+    await init_db()
+    await set_commands(bot)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
