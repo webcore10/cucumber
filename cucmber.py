@@ -1,6 +1,6 @@
 import asyncio
 import random
-from sched import scheduler
+import aiosqlite
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery
 from aiogram import Bot, Dispatcher, F
@@ -18,7 +18,7 @@ bot = Bot(
 )
 
 dp = Dispatcher()
-DB_NAME = "data.json"
+DB_NAME = "cucumbers.db"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
 
@@ -427,22 +427,26 @@ async def stats(message: Message):
 
 
 # -------------------- TOP --------------------
+
 @dp.message(Command("top"))
 async def top(message: Message):
-    rows = await get_top(message.chat.id)
+    chat_id = message.chat.id
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT user_id, size FROM users WHERE chat_id=? ORDER BY size DESC LIMIT 10",
+            (chat_id,)
+        )
+        rows = await cursor.fetchall()
 
     text = "🏆 Топ огурцов:\n\n"
 
-    for i, row in enumerate(rows, 1):
-        name = row["name"] or "Игрок"
-        user_id = row["user_id"]
-        size = row["size"]
-
-        name = name.replace("<", "").replace(">", "")
-
-        text += f"{i}. <a href='tg://user?id={user_id}'>{name}</a> — {size} см\n"
+    for i, (user_id, size) in enumerate(rows, 1):
+        member = await bot.get_chat_member(chat_id, user_id)
+        text += f"{i}. {mention(member.user)} — {size} см\n"
 
     await message.answer(text)
+
 
 # -------------------- FIGHT --------------------
 
@@ -551,7 +555,7 @@ async def fight_callback(callback: CallbackQuery):
 async def main():
     await init_db()
     await set_commands(bot)
-
-    asyncio.create_task(scheduler(bot))
-
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
