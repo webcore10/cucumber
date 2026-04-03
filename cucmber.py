@@ -10,6 +10,10 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 
+
+
+
+
 TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
 bot = Bot(
@@ -54,7 +58,7 @@ async def open_box(message: Message):
                 f"⏳ {mention(message.from_user)}\n"
                 f"Ты уже открывал лутбокс!\n\n"
                 f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
-                f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
+                f"⏱ Осталось: {hours+2}ч {minutes}м {seconds}с"
             )
             return
 
@@ -439,11 +443,14 @@ async def top(message: Message):
         )
         rows = await cursor.fetchall()
 
+    if not rows:
+        await message.answer("😢 Нет игроков")
+        return
+
     text = "🏆 Топ огурцов:\n\n"
 
     for i, (user_id, size) in enumerate(rows, 1):
-        member = await bot.get_chat_member(chat_id, user_id)
-        text += f"{i}. {mention(member.user)} — {size} см\n"
+        text += f"{i}. <a href='tg://user?id={user_id}'>Игрок</a> — {size} см\n"
 
     await message.answer(text)
 
