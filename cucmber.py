@@ -10,7 +10,10 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 
+import pytz
+from datetime import datetime, timedelta
 
+MSK = pytz.timezone("Europe/Moscow")
 
 
 
@@ -25,6 +28,9 @@ dp = Dispatcher()
 DB_NAME = "cucumbers.db"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
+def now_msk():
+    return datetime.now(MSK)
+
 
 # -------------------- ЛУТБОКС --------------------
 @dp.message(Command("box"))
@@ -34,7 +40,8 @@ async def open_box(message: Message):
 
     await save_user_chat(user_id, chat_id)
 
-    # получаем время последнего открытия
+    now = now_msk()
+
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
             "SELECT last_box FROM users WHERE user_id=? AND chat_id=?",
@@ -48,8 +55,8 @@ async def open_box(message: Message):
         last_time = datetime.fromisoformat(last_box)
         next_time = last_time + timedelta(hours=1)
 
-        if datetime.now() < next_time:
-            remaining = next_time - datetime.now()
+        if now < next_time:
+            remaining = next_time - now
 
             hours, remainder = divmod(int(remaining.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
@@ -57,12 +64,12 @@ async def open_box(message: Message):
             await message.answer(
                 f"⏳ {mention(message.from_user)}\n"
                 f"Ты уже открывал лутбокс!\n\n"
-                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
+                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')} (МСК)\n"
                 f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
             )
             return
 
-    # 🎲 выпадение без анимации
+    # 🎲 выпадение
     roll = random.randint(1, 100)
 
     if roll <= 40:
@@ -81,39 +88,24 @@ async def open_box(message: Message):
         reward = random.randint(50, 100)
         rarity = "🟡 Легендарный"
 
-    # обновляем размер
     size, _ = await get_user(user_id, chat_id)
     size += reward
 
     await update_size(user_id, chat_id, size)
 
-    # сохраняем время открытия
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "UPDATE users SET last_box=? WHERE user_id=? AND chat_id=?",
-            (datetime.now().isoformat(), user_id, chat_id)
+            (now.isoformat(), user_id, chat_id)
         )
         await db.commit()
 
-    # вывод
     await message.answer(
         f"🎁 {mention(message.from_user)} открыл лутбокс!\n\n"
         f"✨ Редкость: {rarity}\n"
         f"💰 Награда: +{reward} см\n\n"
         f"📏 Теперь: {size} см"
     )
-
-
-
-async def update_last_box(user_id, chat_id):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "UPDATE users SET last_box=? WHERE user_id=? AND chat_id=?",
-            (datetime.now().isoformat(), user_id, chat_id)
-        )
-        await db.commit()
-
-
 
 
 
