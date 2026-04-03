@@ -58,7 +58,7 @@ async def open_box(message: Message):
                 f"⏳ {mention(message.from_user)}\n"
                 f"Ты уже открывал лутбокс!\n\n"
                 f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
-                f"⏱ Осталось: {hours+2}ч {minutes}м {seconds}с"
+                f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
             )
             return
 
