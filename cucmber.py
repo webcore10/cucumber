@@ -451,7 +451,8 @@ async def top(message: Message):
     text = "🏆 Топ огурцов:\n\n"
 
     for i, (user_id, size) in enumerate(rows, 1):
-        text += f"{i}. <a href='tg://user?id={user_id}'>Игрок</a> — {size} см\n"
+        member = await bot.get_chat_member(chat_id, user_id) 
+        text += f"{i}. {mention(member.user)} — {size} см\n"
 
     await message.answer(text)
 
