@@ -53,6 +53,8 @@ async def open_box(message: Message):
 
     if last_box:
         last_time = datetime.fromisoformat(last_box)
+        if last_time.tzinfo is None:
+            last_time = last_time.replace(tzinfo=MSK)
         next_time = last_time + timedelta(hours=1)
 
         if now < next_time:
