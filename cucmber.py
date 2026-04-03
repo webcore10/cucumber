@@ -251,7 +251,8 @@ async def apply_tax(user_id, chat_id):
             return None
 
     # списываем налог
-    size -= 10
+    k = size//1000
+    size -= 30*k
     if size < 0:
         size = 0
 
