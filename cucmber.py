@@ -9,6 +9,9 @@ from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+
 
 import pytz
 from datetime import datetime, timedelta
@@ -30,6 +33,74 @@ provider_token = ""  # ПУСТАЯ СТРОКА!
 
 def now_msk():
     return datetime.now(MSK)
+
+# -------------------- АДМИН-ПАНЕЛЬ --------------------
+
+class BroadcastState(StatesGroup):
+    waiting_message = State()
+
+ADMIN_ID = 5971748042  # твой ID
+
+@dp.message(Command("admin"))
+async def admin_panel(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")]
+        ]
+    )
+
+    await message.answer("⚙️ Админ-панель", reply_markup=kb)
+
+@dp.callback_query(F.data == "admin_broadcast")
+async def start_broadcast(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    await callback.message.answer("📩 Отправь сообщение для рассылки")
+    await state.set_state(BroadcastState.waiting_message)
+
+    await callback.answer()
+
+
+@dp.message(BroadcastState.waiting_message)
+async def process_broadcast(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT DISTINCT chat_id FROM user_chats")
+        chats = await cursor.fetchall()
+
+    success = 0
+    failed = 0
+
+    for (chat_id,) in chats:
+        try:
+            await message.copy_to(chat_id)
+            success += 1
+            await asyncio.sleep(0.05)
+        except:
+            failed += 1
+
+            # удаляем мёртвые чаты
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute(
+                    "DELETE FROM user_chats WHERE chat_id=?",
+                    (chat_id,)
+                )
+                await db.commit()
+
+    await message.answer(
+        f"📢 Рассылка завершена\n\n"
+        f"✅ Успешно: {success}\n"
+        f"❌ Ошибки: {failed}"
+    )
+
+    await state.clear()
+
 
 
 # -------------------- ЛУТБОКС --------------------
@@ -264,6 +335,7 @@ async def apply_tax(user_id, chat_id):
 def mention(user):
     name = user.full_name.replace("<", "").replace(">", "")
     return f"<a href='tg://user?id={user.id}'>{name}</a>"
+
 # -------------------- БАЗА --------------------
 
 async def init_db():
@@ -290,6 +362,8 @@ async def init_db():
         )
         """)
 
+    
+
 
 
         await db.execute("""
@@ -299,8 +373,48 @@ async def init_db():
             amount INTEGER
         )
         """)
+        
 
         await db.commit()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("PRAGMA table_info(users)")
+        cols = [col[1] for col in await (await db.execute("PRAGMA table_info(users)")).fetchall()]
+
+        if "wins" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN wins INTEGER DEFAULT 0")
+
+        if "loses" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN loses INTEGER DEFAULT 0")
+
+        if "max_size" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN max_size INTEGER DEFAULT 0")
+
+        await db.commit()
+
+
+#--------------- РОСТ ----------------- 
+
+async def update_size(user_id, chat_id, size):
+    async with aiosqlite.connect(DB_NAME) as db:
+        # обновляем максимум
+        cursor = await db.execute(
+            "SELECT max_size FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+        max_size = row[0] if row and row[0] else 0
+
+        if size > max_size:
+            max_size = size
+
+        await db.execute(
+            "UPDATE users SET size=?, max_size=? WHERE user_id=? AND chat_id=?",
+            (size, max_size, user_id, chat_id)
+        )
+        await db.commit()
+
+
 
 
 # -------------------- КОМАНДЫ --------------------
@@ -414,15 +528,55 @@ async def grow(message: Message):
 
 # -------------------- STATS --------------------
 
+
 @dp.message(Command("stats"))
 async def stats(message: Message):
-    size, _ = await get_user(message.from_user.id, message.chat.id)
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    # Получаем данные пользователя
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT size, wins, loses, max_size FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if not row:
+        await message.answer("❌ Нет данных")
+        return
+
+    size, wins, loses, max_size = row
+    wins = wins or 0
+    loses = loses or 0
+    max_size = max_size or size
+
+    total_battles = wins + loses
+    winrate = int((wins / total_battles) * 100) if total_battles > 0 else 0
+
+    # Определяем роль
+    if size < 50:
+        role = "🚜 Колхозник"
+    elif size < 250:
+        role = "🏢 Средний класс"
+    elif size < 500:
+        role = "💼 Предприниматель"
+    elif size < 1000:
+        role = "📊 Последний в Forbes"
+    elif size < 10000:
+        role = "🕶 Друг Коломойского"
+    else:
+        role = "💍 Муж Марички"
+
+    # Отправка текстовой статистики
     await message.answer(
         f"📊 {mention(message.from_user)}\n"
-        f"Твой огурец: {size} см"
-
+        f"📏 Размер: {size} см\n"
+        f"📈 Макс: {max_size} см\n"
+        f"🏆 Победы: {wins} / Поражения: {loses}\n"
+        f"💯 Winrate: {winrate}%\n"
+        f"🎭 Роль: {role}"
     )
-
 
 
 # -------------------- TOP --------------------
@@ -486,7 +640,6 @@ async def fight(message: Message):
 
     )
 
-
 # -------------------- CALLBACK FIGHT --------------------
 
 @dp.callback_query(F.data == "fight")
@@ -549,6 +702,17 @@ async def fight_callback(callback: CallbackQuery):
         f"💀 Проигравший: {mention(loser_user)}\n"
         f"Ставка: {amount} см"
     )
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET wins = COALESCE(wins,0)+1 WHERE user_id=? AND chat_id=?",
+            (winner, chat_id)
+        )
+        await db.execute(
+            "UPDATE users SET loses = COALESCE(loses,0)+1 WHERE user_id=? AND chat_id=?",
+            (loser, chat_id)
+        )
+        await db.commit()
 
     await callback.answer("Бой завершён!")
 
