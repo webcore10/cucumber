@@ -125,7 +125,7 @@ async def open_box(message: Message):
     if last_box:
         last_time = datetime.fromisoformat(last_box)
         if last_time.tzinfo is None:
-            last_time = last_time.replace(tzinfo=MSK)
+            last_time = MSK.localize(last_time)
         next_time = last_time + timedelta(hours=1)
 
         if now < next_time:
@@ -161,7 +161,7 @@ async def open_box(message: Message):
         reward = random.randint(50, 100)
         rarity = "🟡 Легендарный"
 
-    size, _ = await get_user(user_id, chat_id)
+    size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
     size += reward
 
     await update_size(user_id, chat_id, size)
@@ -271,7 +271,7 @@ async def successful_payment(message: Message):
         await message.answer("❗ Сначала поиграй в группе")
         return
 
-    size, _ = await get_user(user_id, chat_id)
+    size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
     size += amount
 
     await update_size(user_id, chat_id, size)
@@ -333,8 +333,11 @@ async def apply_tax(user_id, chat_id):
 # -------------------- УТИЛИТЫ --------------------
 
 def mention(user):
-    name = user.full_name.replace("<", "").replace(">", "")
-    return f"<a href='tg://user?id={user.id}'>{name}</a>"
+    name = (user.full_name or "Игрок").replace("<", "").replace(">", "")
+    try:
+        return f"<a href='tg://user?id={user.id}'>{name}</a>"
+    except:
+        return name
 
 # -------------------- БАЗА --------------------
 
@@ -365,7 +368,6 @@ async def init_db():
     
 
 
-
         await db.execute("""
         CREATE TABLE IF NOT EXISTS fights (
             chat_id INTEGER PRIMARY KEY,
@@ -389,6 +391,10 @@ async def init_db():
 
         if "max_size" not in cols:
             await db.execute("ALTER TABLE users ADD COLUMN max_size INTEGER DEFAULT 0")
+        if "name" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN name TEXT")
+
+
 
         await db.commit()
 
@@ -439,7 +445,7 @@ async def start(message: Message):
 
 # -------------------- БАЗА ФУНКЦИИ --------------------
 
-async def get_user(user_id, chat_id):
+async def get_user(user_id, chat_id, name=None):
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
             "SELECT size, last_grow FROM users WHERE user_id=? AND chat_id=?",
@@ -449,33 +455,21 @@ async def get_user(user_id, chat_id):
 
         if not row:
             await db.execute(
-                "INSERT INTO users (user_id, chat_id, size) VALUES (?, ?, 0)",
-                (user_id, chat_id)
+                "INSERT INTO users (user_id, chat_id, size, name) VALUES (?, ?, 0, ?)",
+                (user_id, chat_id, name)
             )
             await db.commit()
             return 0, None
 
+        # обновляем имя (если поменялось)
+        if name:
+            await db.execute(
+                "UPDATE users SET name=? WHERE user_id=? AND chat_id=?",
+                (name, user_id, chat_id)
+            )
+            await db.commit()
+
         return row
-
-
-async def update_size(user_id, chat_id, size):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "UPDATE users SET size=? WHERE user_id=? AND chat_id=?",
-            (size, user_id, chat_id)
-        )
-        await db.commit()
-
-
-async def update_last_grow(user_id, chat_id):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "UPDATE users SET last_grow=? WHERE user_id=? AND chat_id=?",
-            (datetime.now().isoformat(), user_id, chat_id)
-        )
-        await db.commit()
-
-
 
 
 # -------------------- GROW --------------------
@@ -485,14 +479,18 @@ async def grow(message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     await save_user_chat(user_id, chat_id)
-    size, last_grow = await get_user(user_id, chat_id)
+    size, last_grow = await get_user(user_id, chat_id, message.from_user.full_name)
+
+    now = now_msk()
 
     if last_grow:
         last_time = datetime.fromisoformat(last_grow)
+        if last_time.tzinfo is None:
+            last_time = MSK.localize(last_time)
         next_time = last_time + timedelta(days=1)
 
-        if datetime.now() < next_time:
-            remaining = next_time - datetime.now()
+        if now < next_time:
+            remaining = next_time - now
 
             hours, remainder = divmod(int(remaining.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
@@ -500,7 +498,7 @@ async def grow(message: Message):
             await message.answer(
                 f"⏳ {mention(message.from_user)}\n"
                 f"Ты уже выращивал сегодня!\n\n"
-                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')}\n"
+                f"🕐 Снова можно в: {next_time.strftime('%H:%M:%S')} (МСК)\n"
                 f"⏱ Осталось: {hours}ч {minutes}м {seconds}с"
             )
             return
@@ -517,7 +515,7 @@ async def grow(message: Message):
         await message.answer(
             f"🌱 {mention(message.from_user)}\n"
             f"+{growth} см\nТеперь: {size} см\n"
-            f"💸Вы платите налог на роскошь (-10 см)\n"
+            f"💸Вы платите налог на роскошь ({-30*size//1000} см)\n"
             f"Теперь: {new_size} см"
         )
     else:
@@ -587,7 +585,7 @@ async def top(message: Message):
 
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
-            "SELECT user_id, size FROM users WHERE chat_id=? ORDER BY size DESC LIMIT 10",
+            "SELECT user_id, size, name FROM users WHERE chat_id=? ORDER BY size DESC LIMIT 10",
             (chat_id,)
         )
         rows = await cursor.fetchall()
@@ -598,12 +596,19 @@ async def top(message: Message):
 
     text = "🏆 Топ огурцов:\n\n"
 
-    for i, (user_id, size) in enumerate(rows, 1):
-        member = await bot.get_chat_member(chat_id, user_id) 
-        text += f"{i}. {mention(member.user)} — {size} см\n"
+    medals = ["🥇", "🥈", "🥉"]
+
+    for i, (user_id, size, name) in enumerate(rows, 1):
+        # безопасное имя
+        display_name = (name or "Игрок").replace("<", "").replace(">", "")
+
+        # медали
+        prefix = medals[i-1] if i <= 3 else f"{i}."
+
+        # кликабельное имя
+        text += f"{prefix} <a href='tg://user?id={user_id}'>{display_name}</a> — {size} см\n"
 
     await message.answer(text)
-
 
 # -------------------- FIGHT --------------------
 
@@ -666,7 +671,7 @@ async def fight_callback(callback: CallbackQuery):
 
     # проверка размеров
     c_size, _ = await get_user(challenger, chat_id)
-    u_size, _ = await get_user(user_id, chat_id)
+    u_size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
 
     if c_size < amount or u_size < amount:
         await callback.answer("У кого-то не хватает см 😢")
