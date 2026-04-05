@@ -49,7 +49,8 @@ async def admin_panel(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="📊 Список групп", callback_data="admin_groups")]
+            [InlineKeyboardButton(text="📊 Список групп", callback_data="admin_groups")],
+            [InlineKeyboardButton(text="🧠 Создать задачу", callback_data="admin_task")]
         ]
     )
     await message.answer("⚙️ Админ-панель", reply_markup=kb)
@@ -155,6 +156,107 @@ async def admin_groups(callback: CallbackQuery):
 
     await callback.message.answer(text)
     await callback.answer()
+
+
+#-------------------- СОЗДАНИЕ ЗАДАЧИ --------------------
+class TaskState(StatesGroup):
+    question = State()
+    answer = State()
+    reward = State()
+
+
+@dp.callback_query(F.data == "admin_task")
+async def start_task(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    await callback.message.answer("✏️ Введи задачу:")
+    await state.set_state(TaskState.question)
+    await callback.answer()
+
+
+@dp.message(TaskState.question)
+async def task_question(message: Message, state: FSMContext):
+    await state.update_data(question=message.text)
+    await message.answer("✅ Теперь введи правильный ответ:")
+    await state.set_state(TaskState.answer)
+
+
+@dp.message(TaskState.answer)
+async def task_answer(message: Message, state: FSMContext):
+    await state.update_data(answer=message.text.lower())
+    await message.answer("💰 Введи награду (см):")
+    await state.set_state(TaskState.reward)
+
+ACTIVE_TASK = {}  # chat_id: {answer, reward}
+
+@dp.message(TaskState.reward)
+async def task_reward(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❗ Введи число")
+        return
+
+    reward = int(message.text)
+    data = await state.get_data()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT DISTINCT chat_id FROM user_chats")
+        chats = await cursor.fetchall()
+
+    for (chat_id,) in chats:
+        try:
+            await bot.send_message(
+                chat_id,
+                f"🧠 ЗАДАЧА!\n\n"
+                f"{data['question']}\n\n"
+                f"💰 Награда: {reward} см\n"
+                f"✍️ Напиши ответ в чат"
+            )
+
+            ACTIVE_TASK[chat_id] = {
+                "answer": data["answer"],
+                "reward": reward,
+                "active": True
+            }
+
+        except:
+            pass
+
+    await message.answer("✅ Задача отправлена!")
+    await state.clear()
+
+
+
+@dp.message()
+async def check_answer(message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    if chat_id not in ACTIVE_TASK:
+        return
+
+    task = ACTIVE_TASK[chat_id]
+
+    if not task["active"]:
+        return
+
+    if message.text.lower().strip() == task["answer"]:
+        size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
+
+        size += task["reward"]
+        await update_size(user_id, chat_id, size)
+
+        await message.answer(
+            f"🎉 {mention(message.from_user)} решил задачу!\n"
+            f"+{task['reward']} см\n"
+            f"📏 Теперь: {size} см"
+        )
+
+        # закрываем задачу
+        task["active"] = False
+
+
+
 
 # -------------------- ЛУТБОКС --------------------
 @dp.message(Command("box"))
