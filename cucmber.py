@@ -397,6 +397,7 @@ async def init_db():
 
 
         await db.commit()
+    
 
 
 #--------------- РОСТ ----------------- 
@@ -470,9 +471,23 @@ async def get_user(user_id, chat_id, name=None):
             await db.commit()
 
         return row
+    
+
+
 
 
 # -------------------- GROW --------------------
+
+async def update_last_grow(user_id, chat_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET last_grow=? WHERE user_id=? AND chat_id=?",
+            (now_msk().isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+
+
 
 @dp.message(Command("grow"))
 async def grow(message: Message):
@@ -509,20 +524,21 @@ async def grow(message: Message):
     await update_size(user_id, chat_id, size)
     await update_last_grow(user_id, chat_id)
 
-    new_size = await apply_tax(user_id, chat_id)
+    new_size = int(size - growth*20/100)
 
-    if new_size is not None:
-        await message.answer(
-            f"🌱 {mention(message.from_user)}\n"
-            f"+{growth} см\nТеперь: {size} см\n"
-            f"💸Вы платите налог на роскошь ({-30*size//1000} см)\n"
-            f"Теперь: {new_size} см"
-        )
-    else:
-        await message.answer(
-            f"🌱 {mention(message.from_user)}\n"
-            f"+{growth} см\nТеперь: {size} см"
-        )
+
+    await message.answer(
+        f"🌱 {mention(message.from_user)}\n"
+        f"+{growth} см\nТеперь: {size} см\n"
+        f"💸Вы платите налог 20% см от дохода\n"
+        f"Теперь: {new_size} см"
+    )
+
+
+
+
+
+
 
 # -------------------- STATS --------------------
 
@@ -671,7 +687,7 @@ async def fight_callback(callback: CallbackQuery):
 
     # проверка размеров
     c_size, _ = await get_user(challenger, chat_id)
-    u_size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
+    u_size, _ = await get_user(user_id, chat_id)
 
     if c_size < amount or u_size < amount:
         await callback.answer("У кого-то не хватает см 😢")
