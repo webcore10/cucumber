@@ -48,10 +48,10 @@ async def admin_panel(message: Message):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")]
+            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="📊 Список групп", callback_data="admin_groups")]
         ]
     )
-
     await message.answer("⚙️ Админ-панель", reply_markup=kb)
 
 @dp.callback_query(F.data == "admin_broadcast")
@@ -101,7 +101,60 @@ async def process_broadcast(message: Message, state: FSMContext):
 
     await state.clear()
 
+#-------------------- СПИСОК ГРУПП --------------------
 
+@dp.callback_query(F.data == "admin_groups")
+async def admin_groups(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT DISTINCT chat_id FROM user_chats"
+        )
+        chats = await cursor.fetchall()
+
+    if not chats:
+        await callback.message.answer("❌ Бот нигде не используется")
+        return
+
+    text = "📊 Группы с ботом:\n\n"
+
+    for (chat_id,) in chats:
+        try:
+            chat = await bot.get_chat(chat_id)
+            title = (chat.title or "Без названия").replace("<", "").replace(">", "")
+
+            # считаем игроков
+            async with aiosqlite.connect(DB_NAME) as db:
+                cursor = await db.execute(
+                    "SELECT COUNT(*) FROM users WHERE chat_id=?",
+                    (chat_id,)
+                )
+                count = (await cursor.fetchone())[0]
+
+            # 🔗 ССЫЛКА
+            if chat.username:
+                link = f"https://t.me/{chat.username}"
+            else:
+                try:
+                    invite = await bot.create_chat_invite_link(chat_id)
+                    link = invite.invite_link
+                except:
+                    link = "❌ Нет доступа к ссылке"
+
+            text += (
+                f"• <b>{title}</b>\n"
+                f"👥 Игроков: {count}\n"
+                f"🔗 {link}\n"
+                f"🆔 <code>{chat_id}</code>\n\n"
+            )
+
+        except:
+            text += f"• ❌ Недоступная группа\n🆔 <code>{chat_id}</code>\n\n"
+
+    await callback.message.answer(text)
+    await callback.answer()
 
 # -------------------- ЛУТБОКС --------------------
 @dp.message(Command("box"))
