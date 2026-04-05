@@ -533,7 +533,8 @@ async def grow(message: Message):
         f"💸Вы платите налог 20% см от дохода\n"
         f"Теперь: {new_size} см"
     )
-
+    size = new_size
+    await update_size(user_id, chat_id, size)
 
 
 
