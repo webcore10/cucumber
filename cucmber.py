@@ -210,7 +210,7 @@ async def task_reward(message: Message, state: FSMContext):
                 f"🧠 ЗАДАЧА!\n\n"
                 f"{data['question']}\n\n"
                 f"💰 Награда: {reward} см\n"
-                f"✍️ Напиши ответ в чат"
+                f"✍️ Напиши ответ в чат \n ‼️Если вы отправляете праввильный ответ, но не получаете награду, значит, эта задачеа уже решена в другой группе."
             )
 
             ACTIVE_TASK[chat_id] = {
@@ -227,7 +227,7 @@ async def task_reward(message: Message, state: FSMContext):
 
 
 
-@dp.message()
+@dp.message(F.text)
 async def check_answer(message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
@@ -237,10 +237,13 @@ async def check_answer(message: Message):
 
     task = ACTIVE_TASK[chat_id]
 
-    if not task["active"]:
+    if not task.get("active"):
         return
 
-    if message.text.lower().strip() == task["answer"]:
+    user_answer = message.text.lower().strip()
+    correct_answer = task["answer"].lower().strip()
+
+    if user_answer == correct_answer:
         size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
 
         size += task["reward"]
@@ -252,10 +255,7 @@ async def check_answer(message: Message):
             f"📏 Теперь: {size} см"
         )
 
-        # закрываем задачу
         task["active"] = False
-
-
 
 
 # -------------------- ЛУТБОКС --------------------
