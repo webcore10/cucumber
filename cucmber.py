@@ -227,7 +227,7 @@ async def task_reward(message: Message, state: FSMContext):
 
 
 
-@dp.message(F.text)
+@dp.message(F.text & ~F.text.startswith("/"))
 async def check_answer(message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
