@@ -28,7 +28,7 @@ bot = Bot(
 )
 
 dp = Dispatcher()
-DB_NAME = "cucumbers.db"
+DB_NAME = "data/cucumbers.db"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
 def now_msk():
