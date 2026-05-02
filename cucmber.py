@@ -1,24 +1,22 @@
 import asyncio
 import random
 import aiosqlite
+import aiohttp
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-
 import pytz
 from datetime import datetime, timedelta
 
 MSK = pytz.timezone("Europe/Moscow")
-
-
 
 TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
@@ -31,15 +29,24 @@ dp = Dispatcher()
 DB_NAME = "data/cucumbers.db"
 provider_token = ""  # ПУСТАЯ СТРОКА!
 
+
 def now_msk():
     return datetime.now(MSK)
+
 
 # -------------------- АДМИН-ПАНЕЛЬ --------------------
 
 class BroadcastState(StatesGroup):
     waiting_message = State()
 
+
+class MarketState(StatesGroup):
+    waiting_buy = State()
+    waiting_sell = State()
+
+
 ADMIN_ID = 5971748042  # твой ID
+
 
 @dp.message(Command("admin"))
 async def admin_panel(message: Message):
@@ -54,6 +61,7 @@ async def admin_panel(message: Message):
         ]
     )
     await message.answer("⚙️ Админ-панель", reply_markup=kb)
+
 
 @dp.callback_query(F.data == "admin_broadcast")
 async def start_broadcast(callback: CallbackQuery, state: FSMContext):
@@ -102,7 +110,8 @@ async def process_broadcast(message: Message, state: FSMContext):
 
     await state.clear()
 
-#-------------------- СПИСОК ГРУПП --------------------
+
+# -------------------- СПИСОК ГРУПП --------------------
 
 @dp.callback_query(F.data == "admin_groups")
 async def admin_groups(callback: CallbackQuery):
@@ -158,7 +167,7 @@ async def admin_groups(callback: CallbackQuery):
     await callback.answer()
 
 
-#-------------------- СОЗДАНИЕ ЗАДАЧИ --------------------
+# -------------------- СОЗДАНИЕ ЗАДАЧИ --------------------
 class TaskState(StatesGroup):
     question = State()
     answer = State()
@@ -188,7 +197,9 @@ async def task_answer(message: Message, state: FSMContext):
     await message.answer("💰 Введи награду (см):")
     await state.set_state(TaskState.reward)
 
+
 ACTIVE_TASK = {}  # chat_id: {answer, reward}
+
 
 @dp.message(TaskState.reward)
 async def task_reward(message: Message, state: FSMContext):
@@ -226,8 +237,7 @@ async def task_reward(message: Message, state: FSMContext):
     await state.clear()
 
 
-
-@dp.message(F.text & ~F.text.startswith("/"))
+@dp.message(F.text & ~F.text.startswith("/"), StateFilter(None))
 async def check_answer(message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
@@ -336,7 +346,6 @@ async def open_box(message: Message):
     )
 
 
-
 # -------------------- ПОКУПКА --------------------
 
 async def save_user_chat(user_id, chat_id):
@@ -347,6 +356,7 @@ async def save_user_chat(user_id, chat_id):
         )
         await db.commit()
 
+
 async def get_user_chat(user_id):
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
@@ -355,7 +365,6 @@ async def get_user_chat(user_id):
         )
         row = await cursor.fetchone()
         return row[0] if row else None
-
 
 
 @dp.message(Command("shop"))
@@ -404,7 +413,8 @@ async def buy_handler(call: CallbackQuery):
         start_parameter="cucumber-shop"
     )
 
-    await call.answer("Проверь личные сообщения. Если ничего то нет, то сначала нажми кнопку START в личных сообщениях бота, а потом перейди к покупке в боте.")
+    await call.answer(
+        "Проверь личные сообщения. Если ничего то нет, то сначала нажми кнопку START в личных сообщениях бота, а потом перейди к покупке в боте.")
 
 
 @dp.pre_checkout_query()
@@ -443,8 +453,8 @@ async def successful_payment(message: Message):
         f"Теперь: {size} см"
     )
 
-# -------------------- НАЛОГ --------------------
 
+# -------------------- НАЛОГ --------------------
 
 
 async def apply_tax(user_id, chat_id):
@@ -471,8 +481,8 @@ async def apply_tax(user_id, chat_id):
             return None
 
     # списываем налог
-    k = size//1000
-    size -= 30*k
+    k = size // 1000
+    size -= 30 * k
     if size < 0:
         size = 0
 
@@ -485,6 +495,7 @@ async def apply_tax(user_id, chat_id):
 
     return size
 
+
 # -------------------- УТИЛИТЫ --------------------
 
 def mention(user):
@@ -493,6 +504,44 @@ def mention(user):
         return f"<a href='tg://user?id={user.id}'>{name}</a>"
     except:
         return name
+
+
+# -------------------- АКЦИИ --------------------
+
+STOCKS = {
+    "AAPL": "🍎 Apple",
+    "TSLA": "⚡ Tesla",
+    "NVDA": "🎮 NVIDIA",
+    "AMZN": "📦 Amazon",
+    "GOOGL": "🔍 Google",
+}
+
+
+async def get_stock_prices() -> dict:
+    prices = {}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        for ticker in STOCKS:
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=6)) as r:
+                    data = await r.json(content_type=None)
+                    prices[ticker] = round(data["chart"]["result"][0]["meta"]["regularMarketPrice"], 2)
+            except Exception:
+                prices[ticker] = 0.0
+    return prices
+
+
+async def get_portfolio(user_id: int) -> dict:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT ticker, shares FROM portfolios WHERE user_id=? AND shares > 0",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+    return {ticker: shares for ticker, shares in rows}
+
 
 # -------------------- БАЗА --------------------
 
@@ -520,9 +569,6 @@ async def init_db():
         )
         """)
 
-    
-
-
         await db.execute("""
         CREATE TABLE IF NOT EXISTS fights (
             chat_id INTEGER PRIMARY KEY,
@@ -530,7 +576,14 @@ async def init_db():
             amount INTEGER
         )
         """)
-        
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS portfolios (
+            user_id INTEGER,
+            ticker TEXT,
+            shares REAL DEFAULT 0,
+            PRIMARY KEY (user_id, ticker)
+        )
+        """)
 
         await db.commit()
 
@@ -549,13 +602,10 @@ async def init_db():
         if "name" not in cols:
             await db.execute("ALTER TABLE users ADD COLUMN name TEXT")
 
-
-
         await db.commit()
-    
 
 
-#--------------- РОСТ ----------------- 
+# --------------- РОСТ -----------------
 
 async def update_size(user_id, chat_id, size):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -577,8 +627,6 @@ async def update_size(user_id, chat_id, size):
         await db.commit()
 
 
-
-
 # -------------------- КОМАНДЫ --------------------
 
 async def set_commands(bot: Bot):
@@ -590,6 +638,9 @@ async def set_commands(bot: Bot):
         BotCommand(command="fight", description="Создать бой ⚔️"),
         BotCommand(command="shop", description="Магазин 🛒"),
         BotCommand(command="box", description="Открыть лутбокс 🎁"),
+        BotCommand(command="slots", description="Игровой автомат 🎰"),
+        BotCommand(command="market", description="Рынок акций 📈"),
+        BotCommand(command="forbes", description="Forbes — топ богатейших 💼"),
     ]
     await bot.set_my_commands(commands)
 
@@ -626,9 +677,6 @@ async def get_user(user_id, chat_id, name=None):
             await db.commit()
 
         return row
-    
-
-
 
 
 # -------------------- GROW --------------------
@@ -640,8 +688,6 @@ async def update_last_grow(user_id, chat_id):
             (now_msk().isoformat(), user_id, chat_id)
         )
         await db.commit()
-
-
 
 
 @dp.message(Command("grow"))
@@ -679,8 +725,7 @@ async def grow(message: Message):
     await update_size(user_id, chat_id, size)
     await update_last_grow(user_id, chat_id)
 
-    new_size = int(size - growth*20/100)
-
+    new_size = int(size - growth * 20 / 100)
 
     await message.answer(
         f"🌱 {mention(message.from_user)}\n"
@@ -690,10 +735,6 @@ async def grow(message: Message):
     )
     size = new_size
     await update_size(user_id, chat_id, size)
-
-
-
-
 
 
 # -------------------- STATS --------------------
@@ -738,14 +779,33 @@ async def stats(message: Message):
     else:
         role = "💍 Муж Марички"
 
-    # Отправка текстовой статистики
+    # Портфель акций
+    prices = await get_stock_prices()
+    portfolio = await get_portfolio(user_id)
+    portfolio_lines = ""
+    portfolio_total = 0
+    for ticker, shares in portfolio.items():
+        price = prices.get(ticker, 0)
+        value = int(shares * price)
+        portfolio_total += value
+        portfolio_lines += f"  {STOCKS[ticker]}: {shares:g} шт × {price:.0f} = <b>{value} см</b>\n"
+
+    portfolio_block = ""
+    if portfolio_lines:
+        portfolio_block = (
+            f"\n\n📈 <b>Портфель акций:</b>\n"
+            f"{portfolio_lines}"
+            f"  💼 Стоимость: <b>{portfolio_total} см</b>"
+        )
+
     await message.answer(
         f"📊 {mention(message.from_user)}\n"
-        f"📏 Размер: {size} см\n"
+        f"📏 Огурец: {size} см\n"
         f"📈 Макс: {max_size} см\n"
         f"🏆 Победы: {wins} / Поражения: {loses}\n"
         f"💯 Winrate: {winrate}%\n"
         f"🎭 Роль: {role}"
+        f"{portfolio_block}"
     )
 
 
@@ -775,18 +835,18 @@ async def top(message: Message):
         display_name = (name or "Игрок").replace("<", "").replace(">", "")
 
         # медали
-        prefix = medals[i-1] if i <= 3 else f"{i}."
+        prefix = medals[i - 1] if i <= 3 else f"{i}."
 
         # кликабельное имя
         text += f"{prefix} <a href='tg://user?id={user_id}'>{display_name}</a> — {size} см\n"
 
     await message.answer(text)
 
+
 # -------------------- FIGHT --------------------
 
 @dp.message(Command("fight"))
 async def fight(message: Message):
-
     try:
         amount = int(message.text.split()[1])
     except:
@@ -816,6 +876,7 @@ async def fight(message: Message):
         reply_markup=kb
 
     )
+
 
 # -------------------- CALLBACK FIGHT --------------------
 
@@ -894,12 +955,350 @@ async def fight_callback(callback: CallbackQuery):
     await callback.answer("Бой завершён!")
 
 
+# -------------------- FORBES --------------------
+
+@dp.message(Command("forbes"))
+async def forbes(message: Message):
+    await message.answer("⏳ Считаем состояния, запрашиваем цены акций...")
+    prices = await get_stock_prices()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT user_id, MAX(size) as best_size, name FROM users GROUP BY user_id"
+        )
+        rows = await cursor.fetchall()
+
+    rich_list = []
+    for user_id, best_size, name in rows:
+        portfolio = await get_portfolio(user_id)
+        port_val = int(sum(shares * prices.get(t, 0) for t, shares in portfolio.items()))
+        total = (best_size or 0) + port_val
+        rich_list.append((user_id, total, best_size or 0, port_val, name))
+
+    rich_list.sort(key=lambda x: x[1], reverse=True)
+    rich_list = rich_list[:5]
+
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = ""
+    for i, (uid, total, size, port_val, name) in enumerate(rich_list):
+        display = (name or "Игрок").replace("<", "").replace(">", "")
+        lines += (
+            f"{medals[i]} <a href='tg://user?id={uid}'>{display}</a>\n"
+            f"   🥒 {size} см + 📈 {port_val} см = <b>{total} см</b>\n\n"
+        )
+
+    await message.answer(
+        f"💼 <b>Forbes — Топ 5 богатейших игроков</b>\n\n{lines}"
+    )
+
+
+# -------------------- MARKET --------------------
+
+@dp.message(Command("market"))
+async def market(message: Message):
+    await message.answer("⏳ Получаем котировки...")
+    prices = await get_stock_prices()
+
+    lines = ""
+    for ticker, name in STOCKS.items():
+        price = prices.get(ticker, 0)
+        lines += f"{name} (<code>{ticker}</code>):  <b>{price:.0f} см/акция</b>\n"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=f"🛒 {name.split()[1]}", callback_data=f"mkt_buy_{ticker}"),
+            InlineKeyboardButton(text=f"💸 Продать", callback_data=f"mkt_sell_{ticker}"),
+        ]
+        for ticker, name in STOCKS.items()
+    ])
+
+    await message.answer(
+        f"📈 <b>Рынок акций</b>\n"
+        f"<i>Цены в реальном времени. 1$ = 1 см</i>\n\n"
+        f"{lines}",
+        reply_markup=kb
+    )
+
+
+@dp.callback_query(F.data.startswith("mkt_buy_"))
+async def market_buy_cb(callback: CallbackQuery, state: FSMContext):
+    ticker = callback.data[8:]
+    name = STOCKS.get(ticker, ticker)
+
+    prices = await get_stock_prices()
+    price = prices.get(ticker, 0)
+
+    await state.set_state(MarketState.waiting_buy)
+    await state.update_data(ticker=ticker, chat_id=callback.message.chat.id)
+    await callback.message.answer(
+        f"🛒 Покупка {name}\n"
+        f"📊 Текущая цена: <b>{price:.0f} см/акция</b>\n\n"
+        f"Сколько <b>акций</b> купить?"
+    )
+    await callback.answer()
+
+
+@dp.message(MarketState.waiting_buy)
+async def market_buy_amount(message: Message, state: FSMContext):
+    data = await state.get_data()
+    ticker = data["ticker"]
+    chat_id = data["chat_id"]
+    user_id = message.from_user.id
+
+    try:
+        shares_to_buy = float(message.text.strip().replace(",", "."))
+        if shares_to_buy <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("❗ Введи число акций больше 0 (например: 1 или 0.5)")
+        return
+
+    prices = await get_stock_prices()
+    price = prices.get(ticker, 0)
+    if price <= 0:
+        await message.answer("❌ Не удалось получить цену акции, попробуй позже")
+        await state.clear()
+        return
+
+    cost = int(shares_to_buy * price)
+    if cost <= 0:
+        await message.answer("❗ Слишком малое количество акций")
+        await state.clear()
+        return
+
+    size, _ = await get_user(user_id, chat_id)
+    if size < cost:
+        await message.answer(
+            f"❌ Недостаточно см!\n"
+            f"Нужно: {cost} см, у тебя: {size} см"
+        )
+        await state.clear()
+        return
+
+    await update_size(user_id, chat_id, size - cost)
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """INSERT INTO portfolios (user_id, ticker, shares) VALUES (?, ?, ?)
+               ON CONFLICT(user_id, ticker) DO UPDATE SET shares = shares + excluded.shares""",
+            (user_id, ticker, shares_to_buy)
+        )
+        await db.commit()
+
+    await message.answer(
+        f"✅ Куплено <b>{shares_to_buy:g}</b> акций {STOCKS[ticker]}\n"
+        f"💸 Потрачено: {cost} см\n"
+        f"📊 Цена покупки: {price:.0f} см/акция"
+    )
+    await state.clear()
+
+
+@dp.callback_query(F.data.startswith("mkt_sell_"))
+async def market_sell_cb(callback: CallbackQuery, state: FSMContext):
+    ticker = callback.data[9:]
+    user_id = callback.from_user.id
+    portfolio = await get_portfolio(user_id)
+    shares = portfolio.get(ticker, 0)
+
+    if shares <= 0:
+        await callback.answer("У тебя нет этих акций 📭", show_alert=True)
+        return
+
+    name = STOCKS.get(ticker, ticker)
+    await state.set_state(MarketState.waiting_sell)
+    await state.update_data(ticker=ticker, chat_id=callback.message.chat.id)
+    await callback.message.answer(
+        f"💸 Продажа {name}\n"
+        f"У тебя: <b>{shares:.4f}</b> акций\n"
+        f"Сколько продать? (или напиши <b>все</b>)"
+    )
+    await callback.answer()
+
+
+@dp.message(MarketState.waiting_sell)
+async def market_sell_amount(message: Message, state: FSMContext):
+    data = await state.get_data()
+    ticker = data["ticker"]
+    chat_id = data["chat_id"]
+    user_id = message.from_user.id
+
+    portfolio = await get_portfolio(user_id)
+    owned = portfolio.get(ticker, 0)
+
+    text = message.text.strip().lower()
+    if text in ("все", "всё", "all"):
+        sell_shares = owned
+    else:
+        try:
+            sell_shares = float(text.replace(",", "."))
+            if sell_shares <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❗ Введи число или напиши <b>все</b>")
+            return
+
+    if sell_shares > owned + 1e-9:
+        await message.answer(f"❌ У тебя только {owned:.4f} акций")
+        await state.clear()
+        return
+
+    prices = await get_stock_prices()
+    price = prices.get(ticker, 0)
+    if price <= 0:
+        await message.answer("❌ Не удалось получить цену акции, попробуй позже")
+        await state.clear()
+        return
+
+    earned = int(sell_shares * price)
+    new_shares = owned - sell_shares
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        if new_shares < 1e-6:
+            await db.execute(
+                "DELETE FROM portfolios WHERE user_id=? AND ticker=?",
+                (user_id, ticker)
+            )
+        else:
+            await db.execute(
+                "UPDATE portfolios SET shares=? WHERE user_id=? AND ticker=?",
+                (new_shares, user_id, ticker)
+            )
+        await db.commit()
+
+    size, _ = await get_user(user_id, chat_id)
+    await update_size(user_id, chat_id, size + earned)
+
+    await message.answer(
+        f"✅ Продано <b>{sell_shares:.4f}</b> акций {STOCKS[ticker]}\n"
+        f"💰 Получено: +{earned} см\n"
+        f"🥒 Огурец: {size + earned} см"
+    )
+    await state.clear()
+
+
+# -------------------- SLOTS --------------------
+
+SLOT_SYMBOLS = ["🍋", "🍇", "💎", "7️⃣"]
+SLOT_WEIGHTS = [40, 35, 20, 5]
+
+
+def spin_reels():
+    return [random.choices(SLOT_SYMBOLS, weights=SLOT_WEIGHTS)[0] for _ in range(3)]
+
+
+@dp.message(Command("slots"))
+async def slots_command(message: Message):
+    try:
+        amount = int(message.text.split()[1])
+    except:
+        await message.answer("❗ Пример: /slots 10\nСделай ставку в сантиметрах и крути автомат!")
+        return
+
+    if amount <= 0:
+        await message.answer("❗ Ставка должна быть больше 0 см")
+        return
+
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    size, _ = await get_user(user_id, chat_id, message.from_user.full_name)
+
+    if size < amount:
+        await message.answer(
+            f"❌ Недостаточно см!\n"
+            f"У тебя: {size} см, ставка: {amount} см"
+        )
+        return
+
+    await update_size(user_id, chat_id, size - amount)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎰 Крутить!", callback_data=f"slot_{user_id}_{amount}")]
+        ]
+    )
+
+    await message.answer(
+        f"🎰 {mention(message.from_user)} ставит {amount} см на автомат!\n"
+        f"Нажми кнопку, чтобы крутить!",
+        reply_markup=kb
+    )
+
+
+@dp.callback_query(F.data.startswith("slot_"))
+async def slot_spin_callback(callback: CallbackQuery):
+    parts = callback.data.split("_")
+    original_user_id = int(parts[1])
+    amount = int(parts[2])
+
+    if callback.from_user.id != original_user_id:
+        await callback.answer("Это не твой автомат! 😅")
+        return
+
+    chat_id = callback.message.chat.id
+    user_id = callback.from_user.id
+
+    # убираем кнопку сразу (защита от двойного нажатия)
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    reels = spin_reels()
+    result_line = " | ".join(reels)
+
+    is_jackpot = (reels[0] == reels[1] == reels[2] == "7️⃣")
+    is_three_same = (reels[0] == reels[1] == reels[2]) and not is_jackpot
+
+    size, _ = await get_user(user_id, chat_id)
+
+    header = (
+        "╔═══🎰 CASINO 🎰═══╗\n"
+        f"║  {result_line}              ║\n"
+        "╚════════════════╝"
+    )
+
+    if is_jackpot:
+        winnings = amount * 2
+        new_size = size + winnings
+        await update_size(user_id, chat_id, new_size)
+        await callback.message.answer(
+            f"{header}\n\n"
+            f"🏆 <b>ДЖЕКПОТ! 7️⃣7️⃣7️⃣</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"👤 {mention(callback.from_user)}\n"
+            f"💰 Выигрыш: <b>+{winnings} см</b>\n"
+            f"🥒 Огурец: <b>{new_size} см</b>"
+        )
+    elif is_three_same:
+        winnings = int(amount * 1.5)
+        new_size = size + winnings
+        await update_size(user_id, chat_id, new_size)
+        await callback.message.answer(
+            f"{header}\n\n"
+            f"🎊 <b>Три одинаковых!</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"👤 {mention(callback.from_user)}\n"
+            f"💰 Выигрыш: <b>+{winnings} см</b>\n"
+            f"🥒 Огурец: <b>{new_size} см</b>"
+        )
+    else:
+        await callback.message.answer(
+            f"{header}\n\n"
+            f"😢 <b>Не повезло...</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"👤 {mention(callback.from_user)}\n"
+            f"📉 Ставка: <b>-{amount} см</b>\n"
+            f"🥒 Огурец: <b>{size} см</b>"
+        )
+
+    await callback.answer()
+
+
 # -------------------- ЗАПУСК --------------------
 
 async def main():
     await init_db()
     await set_commands(bot)
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
