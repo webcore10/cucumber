@@ -45,6 +45,11 @@ class MarketState(StatesGroup):
     waiting_sell = State()
 
 
+class AdminCmState(StatesGroup):
+    add_cm = State()
+    sub_cm = State()
+
+
 ADMIN_ID = 5971748042  # твой ID
 
 
@@ -53,13 +58,11 @@ async def admin_panel(message: Message):
     if message.from_user.id != ADMIN_ID:
         return
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="📊 Список групп", callback_data="admin_groups")],
-            [InlineKeyboardButton(text="🧠 Создать задачу", callback_data="admin_task")]
-        ]
-    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="📊 Управление группами", callback_data="admin_groups")],
+        [InlineKeyboardButton(text="🧠 Создать задачу", callback_data="admin_task")],
+    ])
     await message.answer("⚙️ Админ-панель", reply_markup=kb)
 
 
@@ -119,51 +122,175 @@ async def admin_groups(callback: CallbackQuery):
         return
 
     async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT DISTINCT chat_id FROM user_chats"
-        )
+        cursor = await db.execute("SELECT DISTINCT chat_id FROM user_chats")
         chats = await cursor.fetchall()
 
     if not chats:
-        await callback.message.answer("❌ Бот нигде не используется")
+        await callback.message.edit_text("❌ Бот нигде не используется")
+        await callback.answer()
         return
 
-    text = "📊 Группы с ботом:\n\n"
-
+    rows = []
     for (chat_id,) in chats:
         try:
             chat = await bot.get_chat(chat_id)
-            title = (chat.title or "Без названия").replace("<", "").replace(">", "")
-
-            # считаем игроков
-            async with aiosqlite.connect(DB_NAME) as db:
-                cursor = await db.execute(
-                    "SELECT COUNT(*) FROM users WHERE chat_id=?",
-                    (chat_id,)
-                )
-                count = (await cursor.fetchone())[0]
-
-            # 🔗 ССЫЛКА
-            if chat.username:
-                link = f"https://t.me/{chat.username}"
-            else:
-                try:
-                    invite = await bot.create_chat_invite_link(chat_id)
-                    link = invite.invite_link
-                except:
-                    link = "❌ Нет доступа к ссылке"
-
-            text += (
-                f"• <b>{title}</b>\n"
-                f"👥 Игроков: {count}\n"
-                f"🔗 {link}\n"
-                f"🆔 <code>{chat_id}</code>\n\n"
-            )
-
+            title = (chat.title or "Без названия")[:30]
         except:
-            text += f"• ❌ Недоступная группа\n🆔 <code>{chat_id}</code>\n\n"
+            title = f"Группа {chat_id}"
+        rows.append([InlineKeyboardButton(text=f"👥 {title}", callback_data=f"admin_grp_{chat_id}")])
 
-    await callback.message.answer(text)
+    rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_back")])
+    await callback.message.edit_text(
+        "📊 Выбери группу:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("admin_grp_"))
+async def admin_group_users(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    chat_id = int(callback.data[10:])
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT user_id, size, name FROM users WHERE chat_id=? ORDER BY size DESC",
+            (chat_id,)
+        )
+        users = await cursor.fetchall()
+
+    if not users:
+        await callback.answer("Нет игроков в этой группе", show_alert=True)
+        return
+
+    rows = []
+    for user_id, size, name in users:
+        label = (name or "Игрок")[:20]
+        rows.append([InlineKeyboardButton(
+            text=f"👤 {label} — {size} см",
+            callback_data=f"admin_usr_{chat_id}_{user_id}"
+        )])
+
+    rows.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_groups")])
+    await callback.message.edit_text(
+        "👥 Выбери игрока:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("admin_usr_"))
+async def admin_user_actions(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    parts = callback.data.split("_")
+    chat_id = int(parts[2])
+    user_id = int(parts[3])
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT size, name FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if not row:
+        await callback.answer("Игрок не найден", show_alert=True)
+        return
+
+    size, name = row
+    label = (name or "Игрок").replace("<", "").replace(">", "")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="➕ Добавить см", callback_data=f"admin_add_{chat_id}_{user_id}"),
+            InlineKeyboardButton(text="➖ Убрать см", callback_data=f"admin_sub_{chat_id}_{user_id}"),
+        ],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_grp_{chat_id}")]
+    ])
+    await callback.message.edit_text(
+        f"👤 <b>{label}</b>\n🥒 Огурец: {size} см\n\nЧто сделать?",
+        reply_markup=kb
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("admin_add_"))
+async def admin_add_start(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    parts = callback.data.split("_")
+    chat_id, user_id = int(parts[2]), int(parts[3])
+    await state.set_state(AdminCmState.add_cm)
+    await state.update_data(target_user=user_id, target_chat=chat_id)
+    await callback.message.answer("➕ Сколько см добавить?")
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("admin_sub_"))
+async def admin_sub_start(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    parts = callback.data.split("_")
+    chat_id, user_id = int(parts[2]), int(parts[3])
+    await state.set_state(AdminCmState.sub_cm)
+    await state.update_data(target_user=user_id, target_chat=chat_id)
+    await callback.message.answer("➖ Сколько см убрать?")
+    await callback.answer()
+
+
+@dp.message(AdminCmState.add_cm)
+async def admin_add_cm(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        amount = int(message.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("❗ Введи целое число больше 0")
+        return
+    data = await state.get_data()
+    user_id, chat_id = data["target_user"], data["target_chat"]
+    size, _ = await get_user(user_id, chat_id)
+    await update_size(user_id, chat_id, size + amount)
+    await message.answer(f"✅ Добавлено {amount} см. Теперь: {size + amount} см")
+    await state.clear()
+
+
+@dp.message(AdminCmState.sub_cm)
+async def admin_sub_cm(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        amount = int(message.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("❗ Введи целое число больше 0")
+        return
+    data = await state.get_data()
+    user_id, chat_id = data["target_user"], data["target_chat"]
+    size, _ = await get_user(user_id, chat_id)
+    new_size = max(0, size - amount)
+    await update_size(user_id, chat_id, new_size)
+    await message.answer(f"✅ Убрано {amount} см. Теперь: {new_size} см")
+    await state.clear()
+
+
+@dp.callback_query(F.data == "admin_back")
+async def admin_back(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="📊 Управление группами", callback_data="admin_groups")],
+        [InlineKeyboardButton(text="🧠 Создать задачу", callback_data="admin_task")],
+    ])
+    await callback.message.edit_text("⚙️ Админ-панель", reply_markup=kb)
     await callback.answer()
 
 
@@ -964,27 +1091,28 @@ async def forbes(message: Message):
 
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
-            "SELECT user_id, MAX(size) as best_size, name FROM users GROUP BY user_id"
+            "SELECT user_id, SUM(size) as total_size, MAX(name) as name FROM users GROUP BY user_id"
         )
         rows = await cursor.fetchall()
 
     rich_list = []
-    for user_id, best_size, name in rows:
+    for user_id, total_size, name in rows:
         portfolio = await get_portfolio(user_id)
         port_val = int(sum(shares * prices.get(t, 0) for t, shares in portfolio.items()))
-        total = (best_size or 0) + port_val
-        rich_list.append((user_id, total, best_size or 0, port_val, name))
+        cucumber = total_size or 0
+        total = cucumber + port_val
+        rich_list.append((user_id, total, cucumber, port_val, name))
 
     rich_list.sort(key=lambda x: x[1], reverse=True)
     rich_list = rich_list[:5]
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     lines = ""
-    for i, (uid, total, size, port_val, name) in enumerate(rich_list):
+    for i, (uid, total, cucumber, port_val, name) in enumerate(rich_list):
         display = (name or "Игрок").replace("<", "").replace(">", "")
         lines += (
             f"{medals[i]} <a href='tg://user?id={uid}'>{display}</a>\n"
-            f"   🥒 {size} см + 📈 {port_val} см = <b>{total} см</b>\n\n"
+            f"   🥒 {cucumber} см + 📈 {port_val} см = <b>{total} см</b>\n\n"
         )
 
     await message.answer(
