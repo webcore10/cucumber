@@ -1088,18 +1088,20 @@ async def fight_callback(callback: CallbackQuery):
 async def forbes(message: Message):
     await message.answer("⏳ Считаем состояния, запрашиваем цены акций...")
     prices = await get_stock_prices()
+    chat_id = message.chat.id
 
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
-            "SELECT user_id, SUM(size) as total_size, MAX(name) as name FROM users GROUP BY user_id"
+            "SELECT user_id, size, name FROM users WHERE chat_id=?",
+            (chat_id,)
         )
         rows = await cursor.fetchall()
 
     rich_list = []
-    for user_id, total_size, name in rows:
+    for user_id, size, name in rows:
         portfolio = await get_portfolio(user_id)
         port_val = int(sum(shares * prices.get(t, 0) for t, shares in portfolio.items()))
-        cucumber = total_size or 0
+        cucumber = size or 0
         total = cucumber + port_val
         rich_list.append((user_id, total, cucumber, port_val, name))
 
