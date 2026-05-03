@@ -50,6 +50,10 @@ class AdminCmState(StatesGroup):
     sub_cm = State()
 
 
+class LoanState(StatesGroup):
+    waiting_amount = State()
+
+
 ADMIN_ID = 5971748042  # твой ID
 
 
@@ -609,7 +613,8 @@ async def apply_tax(user_id, chat_id):
 
     # списываем налог
     k = size // 1000
-    size -= 30 * k
+    tax_amount = 30 * k
+    size -= tax_amount
     if size < 0:
         size = 0
 
@@ -620,7 +625,76 @@ async def apply_tax(user_id, chat_id):
         )
         await db.commit()
 
+    await add_to_bank(tax_amount)
     return size
+
+
+# -------------------- БАНК --------------------
+
+async def add_to_bank(amount: int):
+    if amount <= 0:
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE bank SET capital = capital + ? WHERE id = 1",
+            (amount,)
+        )
+        await db.commit()
+
+
+async def get_bank_capital() -> int:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT capital FROM bank WHERE id = 1")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+
+async def apply_loan_interest(user_id: int, chat_id: int):
+    """Начисляет 30% в день на кредит за каждый прошедший день. Возвращает (новый_долг, начисленные_проценты)."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT loan, loan_date FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if not row or not row[0]:
+        return 0, 0
+
+    loan, loan_date = row
+    if not loan or loan <= 0:
+        return 0, 0
+
+    if not loan_date:
+        return loan, 0
+
+    now = now_msk()
+    last_time = datetime.fromisoformat(loan_date)
+    if last_time.tzinfo is None:
+        last_time = MSK.localize(last_time)
+
+    days_passed = int((now - last_time).total_seconds() // 86400)
+    if days_passed <= 0:
+        return loan, 0
+
+    interest_total = 0
+    new_loan = loan
+    for _ in range(days_passed):
+        interest = int(new_loan * 0.30)
+        if interest == 0:
+            interest = 1
+        interest_total += interest
+        new_loan += interest
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET loan=?, loan_date=? WHERE user_id=? AND chat_id=?",
+            (new_loan, now.isoformat(), user_id, chat_id)
+        )
+        await db.commit()
+
+    await add_to_bank(interest_total)
+    return new_loan, interest_total
 
 
 # -------------------- УТИЛИТЫ --------------------
@@ -711,6 +785,15 @@ async def init_db():
             PRIMARY KEY (user_id, ticker)
         )
         """)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS bank (
+            id INTEGER PRIMARY KEY,
+            capital INTEGER DEFAULT 0
+        )
+        """)
+        await db.execute(
+            "INSERT OR IGNORE INTO bank (id, capital) VALUES (1, 0)"
+        )
 
         await db.commit()
 
@@ -728,6 +811,10 @@ async def init_db():
             await db.execute("ALTER TABLE users ADD COLUMN max_size INTEGER DEFAULT 0")
         if "name" not in cols:
             await db.execute("ALTER TABLE users ADD COLUMN name TEXT")
+        if "loan" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN loan INTEGER DEFAULT 0")
+        if "loan_date" not in cols:
+            await db.execute("ALTER TABLE users ADD COLUMN loan_date TEXT")
 
         await db.commit()
 
@@ -768,6 +855,7 @@ async def set_commands(bot: Bot):
         BotCommand(command="slots", description="Игровой автомат 🎰"),
         BotCommand(command="market", description="Рынок акций 📈"),
         BotCommand(command="forbes", description="Forbes — топ богатейших 💼"),
+        BotCommand(command="bank", description="Cucumber Bank 🏦"),
     ]
     await bot.set_my_commands(commands)
 
@@ -852,13 +940,26 @@ async def grow(message: Message):
     await update_size(user_id, chat_id, size)
     await update_last_grow(user_id, chat_id)
 
-    new_size = int(size - growth * 20 / 100)
+    tax = int(growth * 20 / 100)
+    new_size = size - tax
+
+    await add_to_bank(tax)
+
+    # применяем ежедневный налог на крупные огурцы (>1000 см)
+    wealth_tax_result = await apply_tax(user_id, chat_id)
+    wealth_tax_note = ""
+    if wealth_tax_result is not None:
+        k = new_size // 1000
+        wt = 30 * k
+        wealth_tax_note = f"\n🏦 Налог на богатство: -{wt} см"
+        new_size = wealth_tax_result
 
     await message.answer(
         f"🌱 {mention(message.from_user)}\n"
         f"+{growth} см\nТеперь: {size} см\n"
-        f"💸Вы платите налог 20% см от дохода\n"
-        f"Теперь: {new_size} см"
+        f"💸 Налог 20% от дохода: -{tax} см"
+        f"{wealth_tax_note}\n"
+        f"🥒 Итого: {new_size} см"
     )
     size = new_size
     await update_size(user_id, chat_id, size)
@@ -1408,15 +1509,201 @@ async def slot_spin_callback(callback: CallbackQuery):
             f"🥒 Огурец: <b>{new_size} см</b>"
         )
     else:
+        await add_to_bank(amount)
         await callback.message.answer(
             f"{header}\n\n"
             f"😢 <b>Не повезло...</b>\n"
             f"━━━━━━━━━━━━━━━\n"
             f"👤 {mention(callback.from_user)}\n"
             f"📉 Ставка: <b>-{amount} см</b>\n"
-            f"🥒 Огурец: <b>{size} см</b>"
+            f"🥒 Огурец: <b>{size} см</b>\n"
+            f"🏦 Cucumber Bank пополнен на {amount} см"
         )
 
+    await callback.answer()
+
+
+# -------------------- BANK --------------------
+
+@dp.message(Command("bank"))
+async def bank_command(message: Message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    # начисляем проценты если прошли сутки
+    loan, interest = await apply_loan_interest(user_id, chat_id)
+
+    capital = await get_bank_capital()
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT loan FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+    loan = row[0] if row and row[0] else 0
+
+    text = (
+        f"🏦 <b>Cucumber Bank</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💰 Капитал банка: <b>{capital} см</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+    )
+
+    buttons = []
+
+    if loan > 0:
+        if interest > 0:
+            text += f"📈 Начислены проценты: <b>+{interest} см к долгу</b>\n"
+        text += (
+            f"💳 Твой долг: <b>{loan} см</b>\n"
+            f"⚠️ Ежедневно +30% на остаток долга\n"
+        )
+        buttons.append([InlineKeyboardButton(text=f"💳 Погасить кредит ({loan} см)", callback_data="repay_loan")])
+    else:
+        text += "📋 <i>Кредиты под 30% в день</i>\n"
+        buttons.append([InlineKeyboardButton(text="💵 Взять кредит", callback_data="take_loan")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.answer(text, reply_markup=kb)
+
+
+@dp.callback_query(F.data == "take_loan")
+async def take_loan_callback(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT loan FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if row and row[0] and row[0] > 0:
+        await callback.answer("❌ У тебя уже есть непогашенный кредит!", show_alert=True)
+        return
+
+    capital = await get_bank_capital()
+    if capital <= 0:
+        await callback.answer("❌ В банке нет средств для выдачи кредита!", show_alert=True)
+        return
+
+    size, _ = await get_user(user_id, chat_id)
+    max_loan = min(capital, 10000)
+    await callback.message.answer(
+        f"💵 <b>Кредит от Cucumber Bank</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"⚠️ Ставка: <b>30% в день</b> на остаток долга\n"
+        f"🏦 Доступно в банке: <b>{capital} см</b>\n"
+        f"🥒 У тебя сейчас: <b>{size} см</b>\n\n"
+        f"Введи сумму кредита (максимум {max_loan} см):"
+    )
+    await state.set_state(LoanState.waiting_amount)
+    await callback.answer()
+
+
+@dp.message(LoanState.waiting_amount)
+async def process_loan_amount(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    try:
+        amount = int(message.text.strip())
+    except ValueError:
+        await message.answer("❗ Введи целое число!")
+        return
+
+    if amount <= 0:
+        await message.answer("❗ Сумма должна быть больше 0 см")
+        return
+
+    capital = await get_bank_capital()
+    max_loan = min(capital, 10000)
+
+    if amount > max_loan:
+        if capital <= 0:
+            await message.answer("❌ В банке закончились средства. Кредит недоступен.")
+            await state.clear()
+            return
+        await message.answer(f"❗ Максимально доступная сумма: {max_loan} см (в банке {capital} см)")
+        return
+
+    now = now_msk()
+    size, _ = await get_user(user_id, chat_id)
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET loan=?, loan_date=? WHERE user_id=? AND chat_id=?",
+            (amount, now.isoformat(), user_id, chat_id)
+        )
+        # вычитаем выданную сумму из капитала банка
+        await db.execute(
+            "UPDATE bank SET capital = capital - ? WHERE id = 1",
+            (amount,)
+        )
+        await db.commit()
+
+    await update_size(user_id, chat_id, size + amount)
+    await state.clear()
+
+    await message.answer(
+        f"✅ <b>Кредит выдан!</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💵 Получено: <b>+{amount} см</b>\n"
+        f"💳 Долг: <b>{amount} см</b>\n"
+        f"⚠️ Каждые 24 ч банк начисляет <b>+30%</b> на остаток\n"
+        f"🥒 Огурец: <b>{size + amount} см</b>"
+    )
+
+
+@dp.callback_query(F.data == "repay_loan")
+async def repay_loan_callback(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
+
+    # сначала начисляем актуальные проценты
+    await apply_loan_interest(user_id, chat_id)
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT loan, size FROM users WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        row = await cursor.fetchone()
+
+    if not row or not row[0] or row[0] <= 0:
+        await callback.answer("У тебя нет активного кредита.", show_alert=True)
+        return
+
+    loan_amount, size = row
+
+    if size < loan_amount:
+        await callback.answer(
+            f"❌ Недостаточно средств!\nДолг: {loan_amount} см, у тебя: {size} см",
+            show_alert=True
+        )
+        return
+
+    new_size = size - loan_amount
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE users SET loan=0, loan_date=NULL WHERE user_id=? AND chat_id=?",
+            (user_id, chat_id)
+        )
+        await db.commit()
+
+    await update_size(user_id, chat_id, new_size)
+    await add_to_bank(loan_amount)
+
+    await callback.message.answer(
+        f"✅ <b>Кредит погашен!</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💳 Выплачено: <b>{loan_amount} см</b>\n"
+        f"🥒 Огурец: <b>{new_size} см</b>\n"
+        f"🏦 Cucumber Bank благодарит за своевременную оплату!"
+    )
     await callback.answer()
 
 
