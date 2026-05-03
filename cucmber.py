@@ -1384,7 +1384,7 @@ async def slot_spin_callback(callback: CallbackQuery):
     )
 
     if is_jackpot:
-        winnings = amount * 2
+        winnings = amount * 10
         new_size = size + winnings
         await update_size(user_id, chat_id, new_size)
         await callback.message.answer(
@@ -1396,7 +1396,7 @@ async def slot_spin_callback(callback: CallbackQuery):
             f"🥒 Огурец: <b>{new_size} см</b>"
         )
     elif is_three_same:
-        winnings = int(amount * 1.5)
+        winnings = int(amount * 5)
         new_size = size + winnings
         await update_size(user_id, chat_id, new_size)
         await callback.message.answer(
