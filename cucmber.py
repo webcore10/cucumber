@@ -860,8 +860,10 @@ async def _do_stats(user, chat_id: int, is_private: bool) -> tuple[str, InlineKe
         role = "📊 Последний в Forbes"
     elif size < 10000:
         role = "🕶 Друг Коломойского"
-    else:
+    elif size < 20000:
         role = "💍 Муж Марички"
+    else:
+        role = 'Покоритель сочных одиннадцатикласниц'
     prices = await get_stock_prices()
     portfolio = await get_portfolio(user_id)
     portfolio_lines = ""
@@ -1699,7 +1701,7 @@ async def _send_market(answer_fn):
     for ticker, name in STOCKS.items():
         price = prices.get(ticker, 0)
         lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
-    lines += "\n🎲 <b>Крипто-токены</b> (меняются каждые 10 мин):\n"
+    lines += "\n🎲 <b>Крипто-токены</b>:\n"
     for ticker, name in VOLATILE_STOCKS.items():
         price = prices.get(ticker, 0)
         lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
