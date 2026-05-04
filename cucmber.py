@@ -22,12 +22,12 @@ import pytz
 
 MSK = pytz.timezone("Europe/Moscow")
 
-TOKEN = "8707444896:AAGUN2mvuXDOzr5zgAKy2ga_9US2Pl70vik"
+TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-DB_NAME = "cucumbers.db"
+DB_NAME = "data/cucumbers.db"
 ADMIN_ID = 5971748042
 BOT_USERNAME = ""
 
