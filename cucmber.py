@@ -92,7 +92,7 @@ async def update_volatile_prices():
         await asyncio.sleep(600)
         for ticker in VOLATILE_STOCKS:
             current = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
-            change_pct = random.uniform(-0.35, 0.55)
+            change_pct = random.uniform(-0.75, 0.05)
             volatile_prices[ticker] = round(max(1.0, min(50000.0, current * (1 + change_pct))), 2)
         await save_volatile_prices()
 
