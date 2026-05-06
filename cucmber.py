@@ -1,10 +1,11 @@
 import asyncio
+import io
 import os
 import random
 import aiosqlite
 import aiohttp
 from datetime import datetime, timedelta
-from aiogram.types import LabeledPrice, PreCheckoutQuery
+from aiogram.types import LabeledPrice, PreCheckoutQuery, BufferedInputFile
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
@@ -12,6 +13,14 @@ from aiogram.types import (
     CallbackQuery, BotCommand,
     BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
 )
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    CHARTS_AVAILABLE = True
+except ImportError:
+    CHARTS_AVAILABLE = False
 from aiogram.filters import Command, StateFilter
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -66,6 +75,7 @@ VOLATILE_INITIAL_PRICES = {
 
 ALL_STOCKS = {**STOCKS, **VOLATILE_STOCKS}
 volatile_prices: dict = {}
+casino_wagered: int = 0
 
 
 async def load_volatile_prices():
@@ -86,14 +96,48 @@ async def save_volatile_prices():
         await db.commit()
 
 
+async def get_total_ticker_shares(ticker: str) -> float:
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT COALESCE(SUM(shares), 0) FROM portfolios WHERE ticker=?", (ticker,)
+        )
+        row = await cursor.fetchone()
+    return row[0] if row else 0.0
+
+
 async def update_volatile_prices():
-    global volatile_prices
+    global volatile_prices, casino_wagered
     while True:
         await asyncio.sleep(600)
-        for ticker in VOLATILE_STOCKS:
-            current = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
-            change_pct = random.uniform(-0.55, 0.55)
-            volatile_prices[ticker] = round(max(1.0, min(50000.0, current * (1 + change_pct))), 2)
+        capital = await get_bank_capital()
+        wagered = casino_wagered
+        casino_wagered = 0
+        bank_stability = min(0.20, capital / 500_000)
+        casino_boost = min(0.25, wagered / 50_000)
+        now_str = now_msk().isoformat()
+        async with aiosqlite.connect(DB_NAME) as db:
+            for ticker in VOLATILE_STOCKS:
+                current = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
+                total_shares = await get_total_ticker_shares(ticker)
+                demand_boost = min(0.15, total_shares / 2000 * 0.15)
+                volatility = 0.28 + casino_boost
+                change = random.uniform(-volatility, volatility * 1.5)
+                if change < 0:
+                    change *= (1 - bank_stability)
+                change += demand_boost
+                new_price = round(max(1.0, min(50000.0, current * (1 + change))), 2)
+                volatile_prices[ticker] = new_price
+                await db.execute(
+                    "INSERT INTO price_history (ticker, price, recorded_at) VALUES (?, ?, ?)",
+                    (ticker, new_price, now_str)
+                )
+            for ticker in VOLATILE_STOCKS:
+                await db.execute(
+                    """DELETE FROM price_history WHERE ticker=? AND id NOT IN (
+                       SELECT id FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 144
+                    )""", (ticker, ticker)
+                )
+            await db.commit()
         await save_volatile_prices()
 
 
@@ -201,6 +245,24 @@ async def init_db():
             clan_id   INTEGER NOT NULL,
             role      TEXT DEFAULT 'Участник',
             joined_at TEXT
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS price_history (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker      TEXT NOT NULL,
+            price       REAL NOT NULL,
+            recorded_at TEXT NOT NULL
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS deposits (
+            deposit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            amount     INTEGER NOT NULL,
+            rate       REAL NOT NULL,
+            days       INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            matures_at TEXT NOT NULL,
+            claimed    INTEGER DEFAULT 0
         )""")
         await db.commit()
 
@@ -339,6 +401,61 @@ async def apply_loan_interest(user_id: int):
     return new_loan, interest_total
 
 
+async def auto_repay_loan(user_id: int, gained: int) -> tuple[int, int]:
+    """Deduct gained cm toward loan. Returns (kept, repaid)."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT loan FROM users WHERE user_id=?", (user_id,))
+        row = await cursor.fetchone()
+    if not row or not row[0] or row[0] <= 0:
+        return gained, 0
+    loan = row[0]
+    repay = min(loan, gained)
+    new_loan = loan - repay
+    async with aiosqlite.connect(DB_NAME) as db:
+        if new_loan > 0:
+            await db.execute("UPDATE users SET loan=? WHERE user_id=?", (new_loan, user_id))
+        else:
+            await db.execute("UPDATE users SET loan=0, loan_date=NULL WHERE user_id=?", (user_id,))
+        await db.commit()
+    await add_to_bank(repay)
+    return gained - repay, repay
+
+
+async def generate_price_chart(ticker: str) -> io.BytesIO | None:
+    if not CHARTS_AVAILABLE:
+        return None
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT price, recorded_at FROM price_history WHERE ticker=? ORDER BY id ASC LIMIT 72",
+            (ticker,)
+        )
+        rows = await cursor.fetchall()
+    if len(rows) < 2:
+        return None
+    prices = [r[0] for r in rows]
+    xs = list(range(len(prices)))
+    color = "#00c853" if prices[-1] >= prices[0] else "#d50000"
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(xs, prices, color=color, linewidth=2)
+    ax.fill_between(xs, prices, min(prices) * 0.95, alpha=0.15, color=color)
+    ax.set_title(f"{VOLATILE_STOCKS.get(ticker, ticker)} ({ticker})", fontsize=14)
+    ax.set_xlabel("Обновления цены")
+    ax.set_ylabel("Цена (см)")
+    ax.grid(True, alpha=0.3)
+    pct = ((prices[-1] - prices[0]) / prices[0]) * 100 if prices[0] else 0
+    ax.set_title(
+        f"{VOLATILE_STOCKS.get(ticker, ticker)} ({ticker})   "
+        f"{'▲' if pct >= 0 else '▼'} {abs(pct):.1f}%",
+        fontsize=13, color=color
+    )
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100)
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
 # -------------------- КЛАНЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ) --------------------
 
 async def get_clan_member(user_id: int):
@@ -469,7 +586,7 @@ async def handle_join_clan(message: Message, clan_id: int):
 BUTTON_TEXTS = frozenset({
     "🌱 Вырастить", "📊 Статистика", "🎁 Лутбокс", "🎰 Слоты",
     "📈 Рынок акций", "💼 Forbes", "🏦 Банк", "🛒 Магазин",
-    "🏆 Топ чата", "⚔️ Бой", "🛡 Клан", "📩 Поддержка",
+    "🏆 Топ чата", "⚔️ Бой", "🛡 Клан", "📩 Поддержка", "💸 Перевод",
 })
 
 
@@ -484,7 +601,8 @@ def main_menu_reply_kb(is_group: bool = False) -> ReplyKeyboardMarkup:
         rows.append([KeyboardButton(text="🏆 Топ чата"), KeyboardButton(text="⚔️ Бой")])
         rows.append([KeyboardButton(text="🛡 Клан")])
     else:
-        rows.append([KeyboardButton(text="🛡 Клан"), KeyboardButton(text="📩 Поддержка")])
+        rows.append([KeyboardButton(text="🛡 Клан"), KeyboardButton(text="💸 Перевод")])
+        rows.append([KeyboardButton(text="📩 Поддержка")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
@@ -537,6 +655,20 @@ class ClanRoleState(StatesGroup):
 
 class SupportState(StatesGroup):
     waiting_message = State()
+
+
+class TransferState(StatesGroup):
+    waiting_target = State()
+    waiting_amount = State()
+    waiting_confirm = State()
+
+
+class DepositState(StatesGroup):
+    waiting_amount = State()
+
+
+class AdminReplyState(StatesGroup):
+    waiting_reply = State()
 
 
 # -------------------- АДМИН-ПАНЕЛЬ --------------------
@@ -646,7 +778,9 @@ async def admin_user_actions(callback: CallbackQuery):
             InlineKeyboardButton(text="➕ Добавить см", callback_data=f"admin_add_{user_id}"),
             InlineKeyboardButton(text="➖ Убрать см", callback_data=f"admin_sub_{user_id}"),
         ],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_users")]
+        [InlineKeyboardButton(text="📊 Статистика игрока", callback_data=f"admin_stats_{user_id}")],
+        [InlineKeyboardButton(text="✉️ Написать игроку", callback_data=f"admin_write_{user_id}")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="admin_users")],
     ])
     await callback.message.edit_text(
         f"👤 <b>{label}</b>\n🥒 Огурец: <b>{size} см</b>\n\nЧто сделать?",
@@ -818,17 +952,26 @@ async def _do_grow(user, chat_id: int, is_private: bool) -> tuple[str, InlineKey
     await add_to_bank(tax)
     wealth_tax_result = await apply_tax(user_id)
     wealth_tax_note = ""
+    wealth_tax = 0
     if wealth_tax_result is not None:
-        k = new_size // 1000
-        wt = 30 * k
-        wealth_tax_note = f"\n🏦 Налог на богатство: -{wt} см"
+        wealth_tax = size - tax - wealth_tax_result
+        wealth_tax_note = f"\n🏦 Налог на богатство: -{wealth_tax} см"
         new_size = wealth_tax_result
     await update_size(user_id, new_size)
+    net_gain = growth - tax - wealth_tax
+    repay_note = ""
+    if net_gain > 0:
+        _, repaid = await auto_repay_loan(user_id, net_gain)
+        if repaid > 0:
+            repay_note = f"\n💳 Автопогашение долга: -{repaid} см"
+            new_size = max(0, new_size - repaid)
+            await update_size(user_id, new_size)
     return (
         f"🌱 {mention(user)}\n"
         f"+{growth} см\nТеперь: {size} см\n"
-        f"💸 Налог 20% от дохода: -{tax} см"
-        f"{wealth_tax_note}\n"
+        f"💸 Налог 20%: -{tax} см"
+        f"{wealth_tax_note}"
+        f"{repay_note}\n"
         f"🥒 Итого: {new_size} см"
     ), menu_kb()
 
@@ -938,9 +1081,16 @@ async def _do_box(user, chat_id: int, is_private: bool) -> tuple[str, InlineKeyb
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("UPDATE users SET last_box=? WHERE user_id=?", (now.isoformat(), user_id))
         await db.commit()
+    repay_note = ""
+    _, repaid = await auto_repay_loan(user_id, reward)
+    if repaid > 0:
+        repay_note = f"\n💳 Автопогашение долга: -{repaid} см"
+        size = max(0, size - repaid)
+        await update_size(user_id, size)
     return (
         f"🎁 {mention(user)} открыл лутбокс!\n\n"
-        f"✨ Редкость: {rarity}\n💰 Награда: +{reward} см\n\n📏 Теперь: {size} см"
+        f"✨ Редкость: {rarity}\n💰 Награда: +{reward} см"
+        f"{repay_note}\n\n📏 Теперь: {size} см"
     ), menu_kb()
 
 
@@ -991,6 +1141,7 @@ async def _do_forbes() -> tuple[str, InlineKeyboardMarkup]:
 
 
 async def _do_slots(user, chat_id: int, is_private: bool, amount: int, answer_fn):
+    global casino_wagered
     user_id = user.id
     if not is_private:
         await save_user_chat(user_id, chat_id)
@@ -1002,6 +1153,7 @@ async def _do_slots(user, chat_id: int, is_private: bool, amount: int, answer_fn
         )
         return
     await update_size(user_id, size - amount)
+    casino_wagered += amount
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎰 Крутить!", callback_data=f"slot_{user_id}_{amount}")]
     ])
@@ -1145,8 +1297,11 @@ async def support_msg_handler(message: Message, state: FSMContext):
         f"📩 <b>Обращение в поддержку</b>\n"
         f"👤 {mention(user)} (ID: <code>{user.id}</code>)"
     )
+    reply_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✉️ Ответить пользователю", callback_data=f"admin_reply_{user.id}")
+    ]])
     try:
-        await bot.send_message(ADMIN_ID, header)
+        await bot.send_message(ADMIN_ID, header, reply_markup=reply_kb)
         await message.forward(ADMIN_ID)
     except Exception:
         pass
@@ -1696,38 +1851,53 @@ async def cmd_forbes_cb(callback: CallbackQuery):
 # -------------------- MARKET --------------------
 
 async def _send_market(answer_fn):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📊 Реальные акции", callback_data="mkt_tab_stocks"),
+            InlineKeyboardButton(text="🎲 Криптовалюта", callback_data="mkt_tab_crypto"),
+        ]
+    ])
+    await answer_fn("📈 <b>Рынок</b>\n\nВыбери раздел:", reply_markup=kb)
+
+
+async def _send_market_stocks(answer_fn):
     prices = await get_stock_prices()
-    lines = "📊 <b>Реальные акции</b> (1$ = 1 см):\n"
+    lines = "📊 <b>Реальные акции</b> (1$ = 1 см):\n\n"
     for ticker, name in STOCKS.items():
         price = prices.get(ticker, 0)
         lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
-    lines += "\n🎲 <b>Крипто-токены</b>:\n"
-    for ticker, name in VOLATILE_STOCKS.items():
-        price = prices.get(ticker, 0)
-        lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
-    real_buttons = [
+    buttons = [
         [
             InlineKeyboardButton(text=f"🛒 {name.split()[1]}", callback_data=f"mkt_buy_{ticker}"),
-            InlineKeyboardButton(text=f"💸 {ticker}", callback_data=f"mkt_sell_{ticker}"),
+            InlineKeyboardButton(text=f"💸 Продать {ticker}", callback_data=f"mkt_sell_{ticker}"),
         ]
         for ticker, name in STOCKS.items()
     ]
-    volatile_buttons = [
-        [
+    buttons.append([InlineKeyboardButton(text="🎲 Перейти к крипто", callback_data="mkt_tab_crypto")])
+    await answer_fn(lines, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+
+async def _send_market_crypto(answer_fn):
+    prices = await get_stock_prices()
+    lines = "🎲 <b>Криптовалюта</b> (цена меняется каждые 10 мин):\n\n"
+    for ticker, name in VOLATILE_STOCKS.items():
+        price = prices.get(ticker, 0)
+        lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/токен</b>\n"
+    buttons = []
+    for ticker in VOLATILE_STOCKS:
+        buttons.append([
             InlineKeyboardButton(text=f"🛒 {ticker}", callback_data=f"mkt_buy_{ticker}"),
-            InlineKeyboardButton(text=f"💸 {ticker}", callback_data=f"mkt_sell_{ticker}"),
-        ]
-        for ticker in VOLATILE_STOCKS
-    ]
-    kb = InlineKeyboardMarkup(inline_keyboard=real_buttons + volatile_buttons)
-    await answer_fn(f"📈 <b>Рынок акций</b>\n\n{lines}", reply_markup=kb)
+            InlineKeyboardButton(text=f"💸 Продать", callback_data=f"mkt_sell_{ticker}"),
+            InlineKeyboardButton(text="📈 График", callback_data=f"mkt_chart_{ticker}"),
+        ])
+    buttons.append([InlineKeyboardButton(text="📊 Перейти к акциям", callback_data="mkt_tab_stocks")])
+    await answer_fn(lines, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 
 @dp.message(Command("market"))
 async def market(message: Message):
     if message.chat.type != "private":
         await save_user_chat(message.from_user.id, message.chat.id)
-    await message.answer("⏳ Получаем котировки...")
     await _send_market(message.answer)
 
 
@@ -1735,9 +1905,42 @@ async def market(message: Message):
 async def cmd_market_cb(callback: CallbackQuery):
     if callback.message.chat.type != "private":
         await save_user_chat(callback.from_user.id, callback.message.chat.id)
-    await callback.message.answer("⏳ Получаем котировки...")
     await _send_market(callback.message.answer)
     await callback.answer()
+
+
+@dp.callback_query(F.data == "mkt_tab_stocks")
+async def mkt_tab_stocks_cb(callback: CallbackQuery):
+    await callback.message.answer("⏳ Получаем котировки...")
+    await _send_market_stocks(callback.message.answer)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "mkt_tab_crypto")
+async def mkt_tab_crypto_cb(callback: CallbackQuery):
+    await _send_market_crypto(callback.message.answer)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("mkt_chart_"))
+async def mkt_chart_cb(callback: CallbackQuery):
+    ticker = callback.data[10:]
+    if ticker not in VOLATILE_STOCKS:
+        await callback.answer("Неверный тикер", show_alert=True)
+        return
+    await callback.answer("⏳ Генерируем график...")
+    chart_buf = await generate_price_chart(ticker)
+    if chart_buf is None:
+        await callback.message.answer(
+            f"❌ Данных для графика {ticker} ещё нет.\n"
+            f"График появится через несколько обновлений цен (≈10–20 мин)."
+        )
+        return
+    name = VOLATILE_STOCKS.get(ticker, ticker)
+    await callback.message.answer_photo(
+        BufferedInputFile(chart_buf.read(), filename=f"{ticker}.png"),
+        caption=f"📈 <b>График {name} ({ticker})</b>"
+    )
 
 
 @dp.callback_query(F.data.startswith("mkt_buy_"))
@@ -1942,20 +2145,32 @@ async def slot_spin_callback(callback: CallbackQuery):
     )
     if is_jackpot:
         winnings = amount * 10
-        await update_size(user_id, size + winnings)
+        final_size = size + winnings
+        await update_size(user_id, final_size)
+        _, repaid = await auto_repay_loan(user_id, winnings)
+        if repaid:
+            final_size = max(0, final_size - repaid)
+            await update_size(user_id, final_size)
+        repay_note = f"\n💳 Автопогашение: -{repaid} см" if repaid else ""
         await callback.message.answer(
             f"{header}\n\n🏆 <b>ДЖЕКПОТ! 7️⃣7️⃣7️⃣</b>\n━━━━━━━━━━━━━━━\n"
             f"👤 {mention(callback.from_user)}\n"
-            f"💰 Выигрыш: <b>+{winnings} см</b>\n🥒 Огурец: <b>{size + winnings} см</b>",
+            f"💰 Выигрыш: <b>+{winnings} см</b>{repay_note}\n🥒 Огурец: <b>{final_size} см</b>",
             reply_markup=menu_kb()
         )
     elif is_three_same:
         winnings = int(amount * 5)
-        await update_size(user_id, size + winnings)
+        final_size = size + winnings
+        await update_size(user_id, final_size)
+        _, repaid = await auto_repay_loan(user_id, winnings)
+        if repaid:
+            final_size = max(0, final_size - repaid)
+            await update_size(user_id, final_size)
+        repay_note = f"\n💳 Автопогашение: -{repaid} см" if repaid else ""
         await callback.message.answer(
             f"{header}\n\n🎊 <b>Три одинаковых!</b>\n━━━━━━━━━━━━━━━\n"
             f"👤 {mention(callback.from_user)}\n"
-            f"💰 Выигрыш: <b>+{winnings} см</b>\n🥒 Огурец: <b>{size + winnings} см</b>",
+            f"💰 Выигрыш: <b>+{winnings} см</b>{repay_note}\n🥒 Огурец: <b>{final_size} см</b>",
             reply_markup=menu_kb()
         )
     else:
@@ -1997,6 +2212,10 @@ async def _send_bank(user_id: int, answer_fn):
     else:
         text += "📋 <i>Кредиты под 30% в день</i>\n"
         buttons.append([InlineKeyboardButton(text="💵 Взять кредит", callback_data="take_loan")])
+    buttons.append([
+        InlineKeyboardButton(text="💰 Открыть вклад", callback_data="deposit_new"),
+        InlineKeyboardButton(text="📋 Мои вклады", callback_data="deposit_list"),
+    ])
     await answer_fn(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 
@@ -2110,6 +2329,385 @@ async def repay_loan_callback(callback: CallbackQuery):
         f"🏦 Cucumber Bank благодарит за своевременную оплату!",
         reply_markup=menu_kb()
     )
+    await callback.answer()
+
+
+# -------------------- ВКЛАДЫ --------------------
+
+@dp.callback_query(F.data == "deposit_new")
+async def deposit_new_cb(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    size, _ = await get_user(user_id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 1 день (+5%)", callback_data="deposit_days_1")],
+        [InlineKeyboardButton(text="📅 2 дня (+12%)", callback_data="deposit_days_2")],
+        [InlineKeyboardButton(text="📅 3 дня (+20%)", callback_data="deposit_days_3")],
+    ])
+    await callback.message.answer(
+        f"💰 <b>Банковский вклад</b>\n\nУ тебя: <b>{size} см</b>\n\n"
+        f"Выбери срок — снять досрочно <b>нельзя</b>:",
+        reply_markup=kb
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("deposit_days_"))
+async def deposit_days_cb(callback: CallbackQuery, state: FSMContext):
+    days = int(callback.data[13:])
+    rates = {1: 0.05, 2: 0.12, 3: 0.20}
+    rate = rates[days]
+    await state.set_state(DepositState.waiting_amount)
+    await state.update_data(days=days, rate=rate)
+    await callback.message.answer(
+        f"💰 Вклад на {days} {'день' if days == 1 else 'дня'} под {int(rate * 100)}%\n"
+        f"Введи сумму (в см):\n\n/cancel — отменить"
+    )
+    await callback.answer()
+
+
+@dp.message(DepositState.waiting_amount)
+async def deposit_amount_input(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("❗ Введи целое число больше 0")
+        return
+    user_id = message.from_user.id
+    size, _ = await get_user(user_id)
+    if size < amount:
+        await message.answer(f"❌ Недостаточно см! У тебя {size} см")
+        return
+    data = await state.get_data()
+    days, rate = data["days"], data["rate"]
+    now = now_msk()
+    matures_at = (now + timedelta(days=days)).isoformat()
+    await update_size(user_id, size - amount)
+    await add_to_bank(amount)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "INSERT INTO deposits (user_id, amount, rate, days, created_at, matures_at) VALUES (?,?,?,?,?,?)",
+            (user_id, amount, rate, days, now.isoformat(), matures_at)
+        )
+        await db.commit()
+    await state.clear()
+    interest = int(amount * rate)
+    await message.answer(
+        f"✅ <b>Вклад открыт!</b>\n"
+        f"💰 Сумма: {amount} см\n"
+        f"📈 Процент: {int(rate * 100)}%\n"
+        f"💵 Получишь: <b>{amount + interest} см</b>\n"
+        f"📅 Доступно: {(now + timedelta(days=days)).strftime('%d.%m %H:%M')} (МСК)"
+    )
+
+
+@dp.callback_query(F.data == "deposit_list")
+async def deposit_list_cb(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    now = now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT deposit_id, amount, rate, days, matures_at FROM deposits "
+            "WHERE user_id=? AND claimed=0 ORDER BY matures_at",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+    if not rows:
+        await callback.message.answer("📋 У тебя нет активных вкладов.")
+        await callback.answer()
+        return
+    text = "📋 <b>Твои вклады:</b>\n\n"
+    buttons = []
+    for did, amount, rate, days, matures_at in rows:
+        matures = datetime.fromisoformat(matures_at)
+        if matures.tzinfo is None:
+            matures = MSK.localize(matures)
+        interest = int(amount * rate)
+        total = amount + interest
+        if now >= matures:
+            status = "✅ Готов"
+            buttons.append([InlineKeyboardButton(
+                text=f"💵 Получить {total} см", callback_data=f"deposit_claim_{did}"
+            )])
+        else:
+            rem = matures - now
+            h, r = divmod(int(rem.total_seconds()), 3600)
+            status = f"⏳ {h}ч {r // 60}м"
+        text += f"💰 {amount} → {total} см ({int(rate*100)}%) — {status}\n"
+    await callback.message.answer(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("deposit_claim_"))
+async def deposit_claim_cb(callback: CallbackQuery):
+    deposit_id = int(callback.data[14:])
+    user_id = callback.from_user.id
+    now = now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT amount, rate, matures_at, claimed FROM deposits WHERE deposit_id=? AND user_id=?",
+            (deposit_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Вклад не найден", show_alert=True)
+        return
+    amount, rate, matures_at, claimed = row
+    if claimed:
+        await callback.answer("Вклад уже получен", show_alert=True)
+        return
+    matures = datetime.fromisoformat(matures_at)
+    if matures.tzinfo is None:
+        matures = MSK.localize(matures)
+    if now < matures:
+        rem = matures - now
+        h, r = divmod(int(rem.total_seconds()), 3600)
+        await callback.answer(f"Ещё не созрел! Через {h}ч {r // 60}м", show_alert=True)
+        return
+    interest = int(amount * rate)
+    payout = amount + interest
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE deposits SET claimed=1 WHERE deposit_id=?", (deposit_id,))
+        await db.execute("UPDATE bank SET capital = MAX(0, capital - ?) WHERE id=1", (interest,))
+        await db.commit()
+    size, _ = await get_user(user_id)
+    await update_size(user_id, size + payout)
+    await callback.message.answer(
+        f"💵 <b>Вклад получен!</b>\n"
+        f"💰 Тело: {amount} см\n"
+        f"📈 Проценты: +{interest} см\n"
+        f"🥒 Итого получено: <b>{payout} см</b>"
+    )
+    await callback.answer()
+
+
+# -------------------- ПЕРЕВОДЫ --------------------
+
+@dp.message(F.text == "💸 Перевод", StateFilter(None))
+async def btn_transfer(message: Message, state: FSMContext):
+    if message.chat.type != "private":
+        await message.answer("⚠️ Переводы доступны только в личных сообщениях!")
+        return
+    await state.set_state(TransferState.waiting_target)
+    await message.answer(
+        "💸 <b>Перевод см</b>\n\n"
+        "Введи <b>числовой ID</b> получателя или перешли любое его сообщение:\n\n"
+        "💡 Свой ID показывает команда /stats\n\n"
+        "/cancel — отменить"
+    )
+
+
+@dp.message(TransferState.waiting_target)
+async def transfer_target_input(message: Message, state: FSMContext):
+    target_id = None
+    target_name = None
+    if message.forward_from:
+        target_id = message.forward_from.id
+        target_name = message.forward_from.full_name
+    elif message.text and message.text.strip().lstrip("-").isdigit():
+        target_id = int(message.text.strip())
+    else:
+        await message.answer("❗ Введи числовой ID или перешли сообщение от пользователя")
+        return
+    if target_id == message.from_user.id:
+        await message.answer("❗ Нельзя переводить себе!")
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT name FROM users WHERE user_id=?", (target_id,))
+        row = await cursor.fetchone()
+    if not row:
+        await message.answer("❌ Пользователь не найден. Он должен хотя бы раз запустить бота.")
+        return
+    name = target_name or row[0] or "Игрок"
+    await state.update_data(target_id=target_id, target_name=name)
+    await state.set_state(TransferState.waiting_amount)
+    size, _ = await get_user(message.from_user.id)
+    await message.answer(
+        f"💸 Получатель: <b>{name}</b> (ID: <code>{target_id}</code>)\n"
+        f"У тебя: <b>{size} см</b>\n\n"
+        f"Введи сумму (мин. 10 см):\n🏦 Комиссия банка: 5%"
+    )
+
+
+@dp.message(TransferState.waiting_amount)
+async def transfer_amount_input(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+        if amount < 10:
+            raise ValueError
+    except ValueError:
+        await message.answer("❗ Минимум 10 см")
+        return
+    user_id = message.from_user.id
+    size, _ = await get_user(user_id)
+    commission = max(1, int(amount * 0.05))
+    total_cost = amount + commission
+    if size < total_cost:
+        await message.answer(
+            f"❌ Недостаточно!\n{amount} + {commission} (комиссия) = {total_cost} см\nУ тебя: {size} см"
+        )
+        return
+    data = await state.get_data()
+    await state.update_data(amount=amount, commission=commission)
+    await state.set_state(TransferState.waiting_confirm)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="transfer_confirm"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="transfer_cancel"),
+        ]
+    ])
+    await message.answer(
+        f"💸 <b>Подтверди перевод:</b>\n\n"
+        f"👤 {data['target_name']}\n"
+        f"💰 Сумма: {amount} см\n"
+        f"🏦 Комиссия (5%): {commission} см\n"
+        f"💸 Итого спишется: {total_cost} см",
+        reply_markup=kb
+    )
+
+
+@dp.callback_query(F.data == "transfer_confirm")
+async def transfer_confirm_cb(callback: CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state != TransferState.waiting_confirm.state:
+        await callback.answer("Устаревший запрос", show_alert=True)
+        return
+    data = await state.get_data()
+    user_id = callback.from_user.id
+    target_id = data["target_id"]
+    amount = data["amount"]
+    commission = data["commission"]
+    total_cost = amount + commission
+    size, _ = await get_user(user_id)
+    if size < total_cost:
+        await callback.answer("❌ Недостаточно см!", show_alert=True)
+        await state.clear()
+        return
+    await update_size(user_id, size - total_cost)
+    target_size, _ = await get_user(target_id)
+    await update_size(target_id, target_size + amount)
+    await add_to_bank(commission)
+    await state.clear()
+    await callback.message.edit_text(
+        f"✅ <b>Перевод выполнен!</b>\n\n"
+        f"💰 Отправлено: {amount} см\n"
+        f"🏦 Комиссия: {commission} см\n"
+        f"🥒 Твой огурец: {size - total_cost} см"
+    )
+    try:
+        await bot.send_message(
+            target_id,
+            f"💸 <b>Входящий перевод!</b>\n"
+            f"👤 От: {callback.from_user.full_name or 'Игрок'}\n"
+            f"💰 Сумма: <b>+{amount} см</b>"
+        )
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "transfer_cancel")
+async def transfer_cancel_cb(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("❌ Перевод отменён.")
+    await callback.answer()
+
+
+# -------------------- ПОДДЕРЖКА: ОТВЕТЫ АДМИНА --------------------
+
+@dp.callback_query(F.data.startswith("admin_reply_"))
+async def admin_reply_cb(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    target_id = int(callback.data[12:])
+    await state.set_state(AdminReplyState.waiting_reply)
+    await state.update_data(target_id=target_id)
+    await callback.message.answer(
+        f"✉️ Введи ответ пользователю {target_id}:\n\n/cancel — отменить"
+    )
+    await callback.answer()
+
+
+@dp.message(AdminReplyState.waiting_reply)
+async def admin_reply_input(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    data = await state.get_data()
+    target_id = data["target_id"]
+    await state.clear()
+    try:
+        await bot.send_message(
+            target_id,
+            f"📬 <b>Ответ от поддержки:</b>\n\n{message.text or '[медиа]'}"
+        )
+        if message.text is None:
+            await message.copy_to(target_id)
+        await message.answer(f"✅ Ответ отправлен пользователю {target_id}")
+    except Exception as e:
+        await message.answer(f"❌ Не удалось отправить: {e}")
+
+
+@dp.callback_query(F.data.startswith("admin_write_"))
+async def admin_write_cb(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    target_id = int(callback.data[12:])
+    await state.set_state(AdminReplyState.waiting_reply)
+    await state.update_data(target_id=target_id)
+    await callback.message.answer(
+        f"✉️ Введи сообщение для пользователя {target_id}:\n\n/cancel — отменить"
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("admin_stats_"))
+async def admin_stats_cb(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    user_id = int(callback.data[12:])
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT size, wins, loses, max_size, loan, name FROM users WHERE user_id=?", (user_id,)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Игрок не найден", show_alert=True)
+        return
+    size, wins, loses, max_size, loan, name = row
+    wins = wins or 0
+    loses = loses or 0
+    loan = loan or 0
+    prices = await get_stock_prices()
+    portfolio = await get_portfolio(user_id)
+    port_val = int(sum(s * prices.get(t, 0) for t, s in portfolio.items()))
+    clan_info = ""
+    member = await get_clan_member(user_id)
+    if member:
+        clan = await get_clan(member[0])
+        if clan:
+            clan_info = f"\n🛡 Клан: {clan[1]} | {member[1]}"
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*), COALESCE(SUM(amount + CAST(amount * rate AS INTEGER)), 0) "
+            "FROM deposits WHERE user_id=? AND claimed=0", (user_id,)
+        )
+        dep_row = await cursor.fetchone()
+    dep_count, dep_total = dep_row if dep_row else (0, 0)
+    text = (
+        f"📊 <b>Игрок:</b> {name or 'Нет имени'} (ID: <code>{user_id}</code>)\n\n"
+        f"🥒 Огурец: <b>{size} см</b>\n"
+        f"📈 Максимум: {max_size or 0} см\n"
+        f"🏆 Победы/поражения: {wins}/{loses}\n"
+        f"💳 Долг: {loan} см\n"
+        f"📈 Портфель: {port_val} см\n"
+        f"💰 Вкладов: {dep_count} (ожидается {dep_total} см)"
+        f"{clan_info}"
+    )
+    await callback.message.answer(text)
     await callback.answer()
 
 
