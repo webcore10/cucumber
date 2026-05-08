@@ -33,7 +33,7 @@ import pytz
 
 MSK = pytz.timezone("Europe/Moscow")
 
-TOKEN = "8707444896:AAGUN2mvuXDOzr5zgAKy2ga_9US2Pl70vik"
+TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -41,7 +41,7 @@ dp = Dispatcher()
 DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cucumbers.db")
 ADMIN_ID = 5971748042
 BOT_USERNAME = ""
-WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
+WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://melcucumber.bothost.tech")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
 
 def now_msk():
