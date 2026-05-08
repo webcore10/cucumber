@@ -74,8 +74,27 @@ VOLATILE_INITIAL_PRICES = {
 }
 
 ALL_STOCKS = {**STOCKS, **VOLATILE_STOCKS}
+
+# -------------------- БИЗНЕС — КОНФИГ --------------------
+
+BIZ_TYPES = {
+    "farm":    {"emoji": "🌾", "label": "Ферма",        "cost": 300_000,   "min_emp": 2, "base_out": 10_000,  "mat_cycle": 15, "salary": 2_500,  "tax": 0.10, "upg_cost": 150_000, "prod_h": 4},
+    "factory": {"emoji": "🏭", "label": "Завод",        "cost": 800_000,   "min_emp": 3, "base_out": 15_000,  "mat_cycle": 20, "salary": 4_000,  "tax": 0.15, "upg_cost": 300_000, "prod_h": 4},
+    "mine":    {"emoji": "⛏️",  "label": "Шахта",        "cost": 600_000,   "min_emp": 4, "base_out": 13_000,  "mat_cycle": 30, "salary": 5_500,  "tax": 0.18, "upg_cost": 250_000, "prod_h": 4},
+    "brewery": {"emoji": "🍺", "label": "Пивоварня",    "cost": 500_000,   "min_emp": 2, "base_out": 12_000,  "mat_cycle": 25, "salary": 3_500,  "tax": 0.12, "upg_cost": 200_000, "prod_h": 4},
+    "it":      {"emoji": "💻", "label": "IT-компания",  "cost": 1_200_000, "min_emp": 1, "base_out": 25_000,  "mat_cycle": 5,  "salary": 8_000,  "tax": 0.20, "upg_cost": 500_000, "prod_h": 4},
+}
+
+MATERIAL_QUALITY = {
+    "low":    {"label": "🟤 Эконом",   "price": 300,  "eff": 0.7},
+    "medium": {"label": "🔵 Стандарт", "price": 900,  "eff": 1.2},
+    "high":   {"label": "💎 Премиум",  "price": 2000, "eff": 2.0},
+}
+
+BIZ_LEVEL_MULT = {1: 1.0, 2: 1.5, 3: 2.0, 4: 2.8, 5: 4.0}
 volatile_prices: dict = {}
 casino_wagered: int = 0
+bet_cycle: int = 0
 
 
 async def load_volatile_prices():
@@ -105,6 +124,74 @@ async def get_total_ticker_shares(ticker: str) -> float:
     return row[0] if row else 0.0
 
 
+async def settle_crypto_bets(old_prices: dict, new_prices: dict):
+    global bet_cycle
+    pct_changes = {}
+    for ticker in VOLATILE_STOCKS:
+        old = old_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
+        new = new_prices.get(ticker, old)
+        pct_changes[ticker] = ((new - old) / old * 100) if old else 0.0
+
+    winner = max(pct_changes, key=lambda t: pct_changes[t])
+    winner_pct = pct_changes[winner]
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT bet_id, user_id, ticker, amount FROM crypto_bets WHERE settled=0 AND cycle=?",
+            (bet_cycle,)
+        )
+        bets = await cursor.fetchall()
+        if bets:
+            total_pool = sum(b[3] for b in bets)
+            winning_bets = [b for b in bets if b[2] == winner and winner_pct > 0]
+            losing_bets = [b for b in bets if b not in winning_bets]
+            winning_amount = sum(b[3] for b in winning_bets)
+
+            if winning_amount > 0 and winner_pct > 0:
+                house_cut = max(1, int(total_pool * 0.05))
+                await db.execute("UPDATE bank SET capital = capital + ? WHERE id = 1", (house_cut,))
+                payout_pool = total_pool - house_cut
+                for bet_id, user_id, ticker, amount in winning_bets:
+                    payout = max(1, int(payout_pool * amount / winning_amount))
+                    await db.execute("UPDATE users SET size = size + ? WHERE user_id=?", (payout, user_id))
+                    await db.execute("UPDATE crypto_bets SET settled=1, won=1 WHERE bet_id=?", (bet_id,))
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
+                            f"🏆 Победитель: {VOLATILE_STOCKS[winner]} (+{winner_pct:.1f}%)\n"
+                            f"✅ Ты поставил правильно!\n"
+                            f"💰 Выигрыш: <b>+{payout} см</b>"
+                        )
+                    except Exception:
+                        pass
+            else:
+                await db.execute("UPDATE bank SET capital = capital + ? WHERE id = 1", (total_pool,))
+
+            for bet_id, user_id, ticker, amount in losing_bets:
+                await db.execute("UPDATE crypto_bets SET settled=1 WHERE bet_id=?", (bet_id,))
+                try:
+                    if winner_pct > 0:
+                        await bot.send_message(
+                            user_id,
+                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
+                            f"🏆 Победитель: {VOLATILE_STOCKS[winner]} (+{winner_pct:.1f}%)\n"
+                            f"❌ Твой выбор ({VOLATILE_STOCKS.get(ticker, ticker)}) не выиграл\n"
+                            f"📉 -{amount} см"
+                        )
+                    else:
+                        await bot.send_message(
+                            user_id,
+                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
+                            f"📉 Все монеты упали — никто не выиграл\n"
+                            f"💸 -{amount} см ушли в банк"
+                        )
+                except Exception:
+                    pass
+        await db.commit()
+    bet_cycle += 1
+
+
 async def update_volatile_prices():
     global volatile_prices, casino_wagered
     while True:
@@ -112,9 +199,12 @@ async def update_volatile_prices():
         capital = await get_bank_capital()
         wagered = casino_wagered
         casino_wagered = 0
+        inflation = await get_inflation_rate()
         bank_stability = min(0.20, capital / 500_000)
         casino_boost = min(0.25, wagered / 50_000)
+        inflation_push = inflation * 0.04
         now_str = now_msk().isoformat()
+        old_prices = dict(volatile_prices)
         async with aiosqlite.connect(DB_NAME) as db:
             for ticker in VOLATILE_STOCKS:
                 current = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
@@ -124,7 +214,7 @@ async def update_volatile_prices():
                 change = random.uniform(-volatility, volatility * 1.5)
                 if change < 0:
                     change *= (1 - bank_stability)
-                change += demand_boost
+                change += demand_boost + inflation_push
                 new_price = round(max(1.0, min(50000.0, current * (1 + change))), 2)
                 volatile_prices[ticker] = new_price
                 await db.execute(
@@ -139,6 +229,75 @@ async def update_volatile_prices():
                 )
             await db.commit()
         await save_volatile_prices()
+        await settle_crypto_bets(old_prices, volatile_prices)
+
+
+async def update_real_stock_prices_loop():
+    while True:
+        await asyncio.sleep(3600)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        prices = {}
+        try:
+            connector = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                for ticker in STOCKS:
+                    try:
+                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+                        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=6)) as r:
+                            data = await r.json(content_type=None)
+                            prices[ticker] = round(data["chart"]["result"][0]["meta"]["regularMarketPrice"], 2)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if not prices:
+            continue
+        now_str = now_msk().isoformat()
+        async with aiosqlite.connect(DB_NAME) as db:
+            for ticker, price in prices.items():
+                await db.execute(
+                    "INSERT INTO price_history (ticker, price, recorded_at) VALUES (?, ?, ?)",
+                    (ticker, price, now_str)
+                )
+            for ticker in STOCKS:
+                await db.execute(
+                    """DELETE FROM price_history WHERE ticker=? AND id NOT IN (
+                       SELECT id FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 72
+                    )""", (ticker, ticker)
+                )
+            await db.commit()
+
+
+async def luxury_tax_loop():
+    while True:
+        now = now_msk()
+        target = now.replace(hour=8, minute=0, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        await asyncio.sleep((target - now).total_seconds())
+        async with aiosqlite.connect(DB_NAME) as db:
+            cursor = await db.execute("SELECT user_id, size FROM users WHERE size >= 1000")
+            users = await cursor.fetchall()
+        total_tax = 0
+        for uid, sz in users:
+            k = sz // 1000
+            tax = 30 * k
+            new_sz = max(0, sz - tax)
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_sz, uid))
+                await db.commit()
+            total_tax += tax
+            try:
+                await bot.send_message(
+                    uid,
+                    f"🏦 <b>Налог на роскошь — 08:00 МСК</b>\n"
+                    f"📉 Списано: <b>{tax} см</b> (×{k} тыс.)\n"
+                    f"🥒 Остаток: <b>{new_sz} см</b>"
+                )
+            except Exception:
+                pass
+        if total_tax > 0:
+            await add_to_bank(total_tax)
 
 
 async def get_stock_prices() -> dict:
@@ -264,6 +423,34 @@ async def init_db():
             matures_at TEXT NOT NULL,
             claimed    INTEGER DEFAULT 0
         )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS crypto_bets (
+            bet_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id  INTEGER NOT NULL,
+            ticker   TEXT NOT NULL,
+            amount   INTEGER NOT NULL,
+            cycle    INTEGER NOT NULL,
+            settled  INTEGER DEFAULT 0,
+            won      INTEGER DEFAULT 0
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS businesses (
+            biz_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id   INTEGER NOT NULL,
+            biz_type   TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            level      INTEGER DEFAULT 1,
+            employees  INTEGER DEFAULT 0,
+            materials  INTEGER DEFAULT 0,
+            mat_qual   TEXT DEFAULT 'low',
+            goods      INTEGER DEFAULT 0,
+            last_prod  TEXT,
+            created_at TEXT NOT NULL
+        )""")
+        try:
+            await db.execute("ALTER TABLE clans ADD COLUMN treasury INTEGER DEFAULT 0")
+        except Exception:
+            pass
         await db.commit()
 
 
@@ -367,6 +554,15 @@ async def get_bank_capital() -> int:
         return row[0] if row else 0
 
 
+async def get_inflation_rate() -> float:
+    """Returns inflation rate as a decimal 0.0–0.5 based on how many 'rich' users exist (size >= 5000)."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE size >= 5000")
+        row = await cursor.fetchone()
+    rich_count = row[0] if row else 0
+    return min(0.50, rich_count * 0.03)
+
+
 async def apply_loan_interest(user_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
@@ -421,6 +617,31 @@ async def auto_repay_loan(user_id: int, gained: int) -> tuple[int, int]:
     return gained - repay, repay
 
 
+def _render_chart_sync(ticker: str, name: str, rows: list) -> io.BytesIO:
+    prices = [r[0] for r in rows]
+    xs = list(range(len(prices)))
+    pct = ((prices[-1] - prices[0]) / prices[0]) * 100 if prices[0] else 0
+    color = "#00c853" if pct >= 0 else "#d50000"
+    arrow = "+" if pct >= 0 else ""
+    fig, ax = plt.subplots(figsize=(8, 4), facecolor="#1a1a2e")
+    ax.set_facecolor("#16213e")
+    ax.plot(xs, prices, color=color, linewidth=2.5)
+    ax.fill_between(xs, prices, min(prices) * 0.95, alpha=0.2, color=color)
+    ax.set_title(f"{name} ({ticker})   {arrow}{pct:.1f}%", fontsize=13, color=color, pad=10)
+    ax.set_xlabel("Price updates", color="#aaaaaa", fontsize=9)
+    ax.set_ylabel("Price (cm)", color="#aaaaaa", fontsize=9)
+    ax.tick_params(colors="#aaaaaa")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#333355")
+    ax.grid(True, alpha=0.2, color="#444466")
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
 async def generate_price_chart(ticker: str) -> io.BytesIO | None:
     if not CHARTS_AVAILABLE:
         return None
@@ -432,27 +653,11 @@ async def generate_price_chart(ticker: str) -> io.BytesIO | None:
         rows = await cursor.fetchall()
     if len(rows) < 2:
         return None
-    prices = [r[0] for r in rows]
-    xs = list(range(len(prices)))
-    color = "#00c853" if prices[-1] >= prices[0] else "#d50000"
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(xs, prices, color=color, linewidth=2)
-    ax.fill_between(xs, prices, min(prices) * 0.95, alpha=0.15, color=color)
-    ax.set_title(f"{VOLATILE_STOCKS.get(ticker, ticker)} ({ticker})", fontsize=14)
-    ax.set_xlabel("Обновления цены")
-    ax.set_ylabel("Цена (см)")
-    ax.grid(True, alpha=0.3)
-    pct = ((prices[-1] - prices[0]) / prices[0]) * 100 if prices[0] else 0
-    ax.set_title(
-        f"{VOLATILE_STOCKS.get(ticker, ticker)} ({ticker})   "
-        f"{'▲' if pct >= 0 else '▼'} {abs(pct):.1f}%",
-        fontsize=13, color=color
-    )
-    fig.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=100)
-    plt.close(fig)
-    buf.seek(0)
+    name = VOLATILE_STOCKS.get(ticker, ticker)
+    try:
+        buf = await asyncio.to_thread(_render_chart_sync, ticker, name, rows)
+    except Exception:
+        return None
     return buf
 
 
@@ -506,13 +711,19 @@ async def _show_clan_menu(message: Message, user_id: int):
         return
     _, name, owner_id, logo_file_id = clan
     members = await get_clan_members_list(clan_id)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT treasury FROM clans WHERE clan_id=?", (clan_id,))
+        trow = await cursor.fetchone()
+    treasury = trow[0] if trow and trow[0] else 0
     text = (
         f"🛡 <b>{name}</b>\n"
         f"👥 Участников: {len(members)}\n"
-        f"🎖 Твоя роль: <b>{role}</b>"
+        f"🎖 Твоя роль: <b>{role}</b>\n"
+        f"💰 Общак: <b>{treasury} см</b>"
     )
     buttons = [
         [InlineKeyboardButton(text="👥 Участники", callback_data=f"clan_members_{clan_id}")],
+        [InlineKeyboardButton(text="💰 Общак", callback_data=f"clan_treasury_{clan_id}")],
     ]
     if user_id == owner_id:
         buttons.append([InlineKeyboardButton(text="🔗 Ссылка-приглашение", callback_data=f"clan_invite_{clan_id}")])
@@ -587,6 +798,7 @@ BUTTON_TEXTS = frozenset({
     "🌱 Вырастить", "📊 Статистика", "🎁 Лутбокс", "🎰 Слоты",
     "📈 Рынок акций", "💼 Forbes", "🏦 Банк", "🛒 Магазин",
     "🏆 Топ чата", "⚔️ Бой", "🛡 Клан", "📩 Поддержка", "💸 Перевод",
+    "🎯 Тотализатор", "🏗️ Бизнес",
 })
 
 
@@ -602,6 +814,7 @@ def main_menu_reply_kb(is_group: bool = False) -> ReplyKeyboardMarkup:
         rows.append([KeyboardButton(text="🛡 Клан")])
     else:
         rows.append([KeyboardButton(text="🛡 Клан"), KeyboardButton(text="💸 Перевод")])
+        rows.append([KeyboardButton(text="🎯 Тотализатор"), KeyboardButton(text="🏗️ Бизнес")])
         rows.append([KeyboardButton(text="📩 Поддержка")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -669,6 +882,25 @@ class DepositState(StatesGroup):
 
 class AdminReplyState(StatesGroup):
     waiting_reply = State()
+
+
+class BetState(StatesGroup):
+    waiting_amount = State()
+
+
+class ClanTreasuryState(StatesGroup):
+    waiting_contribute = State()
+    waiting_withdraw = State()
+
+
+class BizCreateState(StatesGroup):
+    waiting_name = State()
+
+class BizMatState(StatesGroup):
+    waiting_qty = State()
+
+class BizHireState(StatesGroup):
+    waiting_count = State()
 
 
 # -------------------- АДМИН-ПАНЕЛЬ --------------------
@@ -950,15 +1182,8 @@ async def _do_grow(user, chat_id: int, is_private: bool) -> tuple[str, InlineKey
     tax = int(growth * 20 / 100)
     new_size = size - tax
     await add_to_bank(tax)
-    wealth_tax_result = await apply_tax(user_id)
-    wealth_tax_note = ""
-    wealth_tax = 0
-    if wealth_tax_result is not None:
-        wealth_tax = size - tax - wealth_tax_result
-        wealth_tax_note = f"\n🏦 Налог на богатство: -{wealth_tax} см"
-        new_size = wealth_tax_result
     await update_size(user_id, new_size)
-    net_gain = growth - tax - wealth_tax
+    net_gain = growth - tax
     repay_note = ""
     if net_gain > 0:
         _, repaid = await auto_repay_loan(user_id, net_gain)
@@ -970,7 +1195,6 @@ async def _do_grow(user, chat_id: int, is_private: bool) -> tuple[str, InlineKey
         f"🌱 {mention(user)}\n"
         f"+{growth} см\nТеперь: {size} см\n"
         f"💸 Налог 20%: -{tax} см"
-        f"{wealth_tax_note}"
         f"{repay_note}\n"
         f"🥒 Итого: {new_size} см"
     ), menu_kb()
@@ -1569,6 +1793,158 @@ async def clan_leave_cb(callback: CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data.startswith("clan_treasury_"))
+async def clan_treasury_cb(callback: CallbackQuery):
+    clan_id = int(callback.data[14:])
+    user_id = callback.from_user.id
+    member = await get_clan_member(user_id)
+    if not member or member[0] != clan_id:
+        await callback.answer("❌ Ты не в этом клане", show_alert=True)
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT name, owner_id, treasury FROM clans WHERE clan_id=?", (clan_id,)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Клан не найден", show_alert=True)
+        return
+    clan_name, owner_id, treasury = row
+    treasury = treasury or 0
+    size, _ = await get_user(user_id)
+    btns = [
+        [InlineKeyboardButton(text="💸 Положить в общак", callback_data=f"clan_contrib_{clan_id}")],
+    ]
+    if user_id == owner_id and treasury > 0:
+        btns.append([InlineKeyboardButton(
+            text=f"📤 Вывести из общака ({treasury} см)", callback_data=f"clan_withdraw_{clan_id}"
+        )])
+    await callback.message.answer(
+        f"💰 <b>Общак клана «{clan_name}»</b>\n━━━━━━━━━━━━━━━\n"
+        f"💵 В общаке: <b>{treasury} см</b>\n"
+        f"🥒 У тебя: <b>{size} см</b>\n\n"
+        f"Любой участник может положить сантиметры в общак.\n"
+        f"Вывести может только лидер клана.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=btns)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("clan_contrib_"))
+async def clan_contrib_cb(callback: CallbackQuery, state: FSMContext):
+    clan_id = int(callback.data[13:])
+    user_id = callback.from_user.id
+    member = await get_clan_member(user_id)
+    if not member or member[0] != clan_id:
+        await callback.answer("❌ Ты не в этом клане", show_alert=True)
+        return
+    size, _ = await get_user(user_id)
+    await state.set_state(ClanTreasuryState.waiting_contribute)
+    await state.update_data(clan_id=clan_id)
+    await callback.message.answer(
+        f"💸 Сколько см положить в общак?\n"
+        f"💰 Твой баланс: {size} см\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(ClanTreasuryState.waiting_contribute)
+async def clan_contrib_input(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+        if amount < 1:
+            raise ValueError
+    except ValueError:
+        await message.answer("❌ Введи целое число больше 0.")
+        return
+    user_id = message.from_user.id
+    size, _ = await get_user(user_id)
+    if size < amount:
+        await message.answer(f"❌ Недостаточно см: у тебя {size} см.")
+        return
+    data = await state.get_data()
+    clan_id = data["clan_id"]
+    member = await get_clan_member(user_id)
+    if not member or member[0] != clan_id:
+        await state.clear()
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE clans SET treasury = treasury + ? WHERE clan_id=?", (amount, clan_id)
+        )
+        await db.commit()
+    await update_size(user_id, size - amount)
+    await state.clear()
+    await message.answer(
+        f"✅ <b>+{amount} см</b> добавлено в общак клана!\n"
+        f"🥒 Твой остаток: {size - amount} см"
+    )
+
+
+@dp.callback_query(F.data.startswith("clan_withdraw_"))
+async def clan_withdraw_cb(callback: CallbackQuery, state: FSMContext):
+    clan_id = int(callback.data[14:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT owner_id, treasury FROM clans WHERE clan_id=?", (clan_id,)
+        )
+        row = await cursor.fetchone()
+    if not row or row[0] != user_id:
+        await callback.answer("❌ Только лидер может выводить средства", show_alert=True)
+        return
+    treasury = row[1] or 0
+    if treasury <= 0:
+        await callback.answer("Общак пуст", show_alert=True)
+        return
+    await state.set_state(ClanTreasuryState.waiting_withdraw)
+    await state.update_data(clan_id=clan_id)
+    await callback.message.answer(
+        f"📤 Вывод из общака\n"
+        f"💵 Доступно: <b>{treasury} см</b>\n"
+        f"Сколько вывести?\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(ClanTreasuryState.waiting_withdraw)
+async def clan_withdraw_input(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+        if amount < 1:
+            raise ValueError
+    except ValueError:
+        await message.answer("❌ Введи целое число больше 0.")
+        return
+    user_id = message.from_user.id
+    data = await state.get_data()
+    clan_id = data["clan_id"]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT owner_id, treasury FROM clans WHERE clan_id=?", (clan_id,)
+        )
+        row = await cursor.fetchone()
+    if not row or row[0] != user_id:
+        await state.clear()
+        return
+    treasury = row[1] or 0
+    if amount > treasury:
+        await message.answer(f"❌ В общаке только {treasury} см.")
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE clans SET treasury = treasury - ? WHERE clan_id=?", (amount, clan_id)
+        )
+        await db.commit()
+    size, _ = await get_user(user_id)
+    await update_size(user_id, size + amount)
+    await state.clear()
+    await message.answer(
+        f"✅ Выведено <b>{amount} см</b> из общака!\n"
+        f"🥒 Твой баланс: {size + amount} см"
+    )
+
+
 # -------------------- GROW --------------------
 
 @dp.message(Command("grow"))
@@ -1866,13 +2242,13 @@ async def _send_market_stocks(answer_fn):
     for ticker, name in STOCKS.items():
         price = prices.get(ticker, 0)
         lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
-    buttons = [
-        [
+    buttons = []
+    for ticker, name in STOCKS.items():
+        buttons.append([
             InlineKeyboardButton(text=f"🛒 {name.split()[1]}", callback_data=f"mkt_buy_{ticker}"),
             InlineKeyboardButton(text=f"💸 Продать {ticker}", callback_data=f"mkt_sell_{ticker}"),
-        ]
-        for ticker, name in STOCKS.items()
-    ]
+            InlineKeyboardButton(text="📈 График", callback_data=f"mkt_chart_{ticker}"),
+        ])
     buttons.append([InlineKeyboardButton(text="🎲 Перейти к крипто", callback_data="mkt_tab_crypto")])
     await answer_fn(lines, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
@@ -1925,18 +2301,22 @@ async def mkt_tab_crypto_cb(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("mkt_chart_"))
 async def mkt_chart_cb(callback: CallbackQuery):
     ticker = callback.data[10:]
-    if ticker not in VOLATILE_STOCKS:
+    if ticker not in ALL_STOCKS:
         await callback.answer("Неверный тикер", show_alert=True)
         return
     await callback.answer("⏳ Генерируем график...")
     chart_buf = await generate_price_chart(ticker)
     if chart_buf is None:
+        if ticker in VOLATILE_STOCKS:
+            hint = "≈10–20 мин (крипто обновляется каждые 10 мин)"
+        else:
+            hint = "≈1–2 ч (акции сохраняются раз в час)"
         await callback.message.answer(
             f"❌ Данных для графика {ticker} ещё нет.\n"
-            f"График появится через несколько обновлений цен (≈10–20 мин)."
+            f"График появится через {hint}."
         )
         return
-    name = VOLATILE_STOCKS.get(ticker, ticker)
+    name = ALL_STOCKS.get(ticker, ticker)
     await callback.message.answer_photo(
         BufferedInputFile(chart_buf.read(), filename=f"{ticker}.png"),
         caption=f"📈 <b>График {name} ({ticker})</b>"
@@ -2054,7 +2434,10 @@ async def market_sell_amount(message: Message, state: FSMContext):
         await message.answer("❌ Не удалось получить цену акции, попробуй позже")
         await state.clear()
         return
-    earned = int(sell_shares * price)
+    gross = int(sell_shares * price)
+    commission = max(1, int(gross * 0.05))
+    earned = gross - commission
+    await add_to_bank(commission)
     new_shares = owned - sell_shares
     async with aiosqlite.connect(DB_NAME) as db:
         if new_shares < 1e-6:
@@ -2071,7 +2454,8 @@ async def market_sell_amount(message: Message, state: FSMContext):
     await update_size(user_id, size + earned)
     await message.answer(
         f"✅ Продано <b>{sell_shares:.4f}</b> акций {ALL_STOCKS.get(ticker, ticker)}\n"
-        f"💰 Получено: +{earned} см\n🥒 Огурец: {size + earned} см",
+        f"💰 Сумма: {gross} см  •  Комиссия 5%: -{commission} см\n"
+        f"📥 Получено: <b>+{earned} см</b>\n🥒 Огурец: {size + earned} см",
         reply_markup=menu_kb()
     )
     await state.clear()
@@ -2190,13 +2574,23 @@ async def slot_spin_callback(callback: CallbackQuery):
 async def _send_bank(user_id: int, answer_fn):
     loan, interest = await apply_loan_interest(user_id)
     capital = await get_bank_capital()
+    inflation = await get_inflation_rate()
+    inflation_pct = inflation * 100
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute("SELECT loan FROM users WHERE user_id=?", (user_id,))
         row = await cursor.fetchone()
     loan = row[0] if row and row[0] else 0
+    if inflation_pct < 5:
+        inf_emoji = "🟢"
+    elif inflation_pct < 20:
+        inf_emoji = "🟡"
+    else:
+        inf_emoji = "🔴"
     text = (
         f"🏦 <b>Cucumber Bank</b>\n━━━━━━━━━━━━━━━\n"
-        f"💰 Капитал банка: <b>{capital} см</b>\n━━━━━━━━━━━━━━━\n"
+        f"💰 Капитал банка: <b>{capital} см</b>\n"
+        f"{inf_emoji} Инфляция: <b>{inflation_pct:.1f}%</b> "
+        f"<i>(богатых игроков: {int(inflation_pct / 3)})</i>\n━━━━━━━━━━━━━━━\n"
     )
     buttons = []
     if loan > 0:
@@ -2248,7 +2642,7 @@ async def take_loan_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ В банке нет средств для выдачи кредита!", show_alert=True)
         return
     size, _ = await get_user(user_id)
-    max_loan = min(capital, 10000)
+    max_loan = min(capital, 100000)
     await callback.message.answer(
         f"💵 <b>Кредит от Cucumber Bank</b>\n━━━━━━━━━━━━━━━\n"
         f"⚠️ Ставка: <b>30% в день</b> на остаток долга\n"
@@ -2271,7 +2665,7 @@ async def process_loan_amount(message: Message, state: FSMContext):
         await message.answer("❗ Введи целое число больше 0!")
         return
     capital = await get_bank_capital()
-    max_loan = min(capital, 10000)
+    max_loan = min(capital, 100000)
     if amount > max_loan:
         if capital <= 0:
             await message.answer("❌ В банке закончились средства. Кредит недоступен.")
@@ -2483,6 +2877,650 @@ async def deposit_claim_cb(callback: CallbackQuery):
         f"🥒 Итого получено: <b>{payout} см</b>"
     )
     await callback.answer()
+
+
+# -------------------- БИЗНЕС --------------------
+
+async def _send_biz_panel(biz_id: int, answer_fn):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_id, owner_id, biz_type, name, level, employees, materials, mat_qual, goods, last_prod "
+            "FROM businesses WHERE biz_id=?", (biz_id,)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await answer_fn("❌ Предприятие не найдено.")
+        return
+    bid, owner_id, biz_type, name, level, employees, materials, mat_qual, goods, last_prod = row
+    cfg = BIZ_TYPES[biz_type]
+    qual = MATERIAL_QUALITY[mat_qual]
+
+    can_produce = False
+    cd_str = ""
+    if last_prod:
+        last_dt = datetime.fromisoformat(last_prod)
+        if last_dt.tzinfo is None:
+            last_dt = MSK.localize(last_dt)
+        next_dt = last_dt + timedelta(hours=cfg["prod_h"])
+        now = now_msk()
+        if now >= next_dt:
+            can_produce = True
+        else:
+            rem = next_dt - now
+            h, r = divmod(int(rem.total_seconds()), 3600)
+            cd_str = f"{h}ч {r // 60}м"
+    else:
+        can_produce = True
+
+    ready = employees >= cfg["min_emp"] and materials >= cfg["mat_cycle"]
+    goods_gain = int(cfg["base_out"] * employees * qual["eff"] * BIZ_LEVEL_MULT[level]) if ready else 0
+    salary = employees * cfg["salary"] if ready else 0
+
+    lines = [
+        f"{cfg['emoji']} <b>{name}</b>   Ур.{level}/5",
+        "━━━━━━━━━━━━━━━",
+        f"👷 Сотрудников: <b>{employees}</b> (мин. {cfg['min_emp']}, макс. {10 * level})",
+        f"📦 Сырьё: <b>{materials} ед.</b> ({qual['label']})",
+        f"💼 Товары на складе: <b>{goods} см</b>",
+        "━━━━━━━━━━━━━━━",
+    ]
+    if ready:
+        lines += [
+            f"📊 1 цикл ({cfg['prod_h']}ч):",
+            f"  +{goods_gain} см товаров",
+            f"  −{salary} см зарплата",
+            f"  −{cfg['mat_cycle']} ед. сырья",
+            f"  Налог при продаже: {int(cfg['tax'] * 100)}%",
+        ]
+        if cd_str:
+            lines.append(f"⏳ Кулдаун: {cd_str}")
+    else:
+        issues = []
+        if employees < cfg["min_emp"]:
+            issues.append(f"нужно ≥{cfg['min_emp']} сотрудников")
+        if materials < cfg["mat_cycle"]:
+            issues.append(f"нужно ≥{cfg['mat_cycle']} ед. сырья")
+        lines.append("⚠️ Не работает: " + ", ".join(issues))
+
+    btns = []
+    if can_produce and ready:
+        btns.append([InlineKeyboardButton(text="⚙️ Произвести", callback_data=f"biz_prod_{bid}")])
+    btns.append([
+        InlineKeyboardButton(text="📦 Купить сырьё", callback_data=f"biz_mat_{bid}"),
+        InlineKeyboardButton(text="👷 Нанять", callback_data=f"biz_hire_{bid}"),
+    ])
+    row2 = []
+    if employees > 0:
+        row2.append(InlineKeyboardButton(text="👋 Уволить всех", callback_data=f"biz_fire_{bid}"))
+    if goods > 0:
+        row2.append(InlineKeyboardButton(text="💰 Продать всё", callback_data=f"biz_sell_{bid}"))
+    if row2:
+        btns.append(row2)
+    if level < 5:
+        upg = cfg["upg_cost"] * level
+        btns.append([InlineKeyboardButton(
+            text=f"⬆️ Улучшить до Ур.{level + 1} ({upg} см)",
+            callback_data=f"biz_upg_{bid}"
+        )])
+    btns.append([InlineKeyboardButton(text="◀️ Мои предприятия", callback_data="biz_list")])
+    await answer_fn("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+
+
+async def _show_biz_list(user_id: int, answer_fn):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_id, biz_type, name, level, goods FROM businesses WHERE owner_id=?",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+    btns = []
+    if rows:
+        text = "🏗️ <b>Твои предприятия</b>\n━━━━━━━━━━━━━━━\n"
+        for bid, biz_type, name, level, goods in rows:
+            cfg = BIZ_TYPES[biz_type]
+            text += f"{cfg['emoji']} <b>{name}</b>  Ур.{level}  💼{goods}см\n"
+            btns.append([InlineKeyboardButton(
+                text=f"{cfg['emoji']} {name}", callback_data=f"biz_view_{bid}"
+            )])
+    else:
+        text = "🏗️ <b>Предприятия</b>\n\nУ тебя пока нет предприятий."
+    if len(rows) < 3:
+        btns.append([InlineKeyboardButton(text="🏪 Купить предприятие", callback_data="biz_buy_menu")])
+    await answer_fn(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+
+
+@dp.message(F.text == "🏗️ Бизнес", StateFilter(None))
+async def btn_biz(message: Message):
+    if message.chat.type != "private":
+        await message.answer("🏗️ Предприятия доступны только в личных сообщениях.")
+        return
+    await _show_biz_list(message.from_user.id, message.answer)
+
+
+@dp.callback_query(F.data == "biz_list")
+async def biz_list_cb(callback: CallbackQuery):
+    await _show_biz_list(callback.from_user.id, callback.message.answer)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "biz_buy_menu")
+async def biz_buy_menu_cb(callback: CallbackQuery):
+    lines = ["🏪 <b>Типы предприятий</b>\n━━━━━━━━━━━━━━━"]
+    btns = []
+    for key, cfg in BIZ_TYPES.items():
+        lines.append(
+            f"{cfg['emoji']} <b>{cfg['label']}</b> — {cfg['cost']} см\n"
+            f"  мин. {cfg['min_emp']} сотр. | налог {int(cfg['tax'] * 100)}% | цикл {cfg['prod_h']}ч"
+        )
+        btns.append([InlineKeyboardButton(
+            text=f"{cfg['emoji']} {cfg['label']} ({cfg['cost']} см)",
+            callback_data=f"biz_pick_{key}"
+        )])
+    btns.append([InlineKeyboardButton(text="◀️ Назад", callback_data="biz_list")])
+    await callback.message.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_pick_"))
+async def biz_pick_type_cb(callback: CallbackQuery, state: FSMContext):
+    biz_type = callback.data[9:]
+    if biz_type not in BIZ_TYPES:
+        await callback.answer("Неверный тип", show_alert=True)
+        return
+    user_id = callback.from_user.id
+    cfg = BIZ_TYPES[biz_type]
+    size, _ = await get_user(user_id)
+    if size < cfg["cost"]:
+        await callback.answer(f"❌ Нужно {cfg['cost']} см, у тебя {size} см", show_alert=True)
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM businesses WHERE owner_id=?", (user_id,))
+        cnt = (await cursor.fetchone())[0]
+    if cnt >= 3:
+        await callback.answer("❌ Максимум 3 предприятия на одного игрока", show_alert=True)
+        return
+    await state.set_state(BizCreateState.waiting_name)
+    await state.update_data(biz_type=biz_type)
+    await callback.message.answer(
+        f"🏪 Открываешь {cfg['emoji']} <b>{cfg['label']}</b>\n"
+        f"Придумай название предприятию (2–40 символов):\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(BizCreateState.waiting_name)
+async def biz_name_input(message: Message, state: FSMContext):
+    name = message.text.strip()
+    if len(name) < 2 or len(name) > 40:
+        await message.answer("❌ Название должно быть от 2 до 40 символов.")
+        return
+    data = await state.get_data()
+    biz_type = data["biz_type"]
+    cfg = BIZ_TYPES[biz_type]
+    user_id = message.from_user.id
+    size, _ = await get_user(user_id)
+    if size < cfg["cost"]:
+        await state.clear()
+        await message.answer(f"❌ Недостаточно средств: нужно {cfg['cost']} см.")
+        return
+    await update_size(user_id, size - cfg["cost"])
+    now_str = now_msk().isoformat()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "INSERT INTO businesses (owner_id, biz_type, name, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, biz_type, name, now_str)
+        )
+        biz_id = cursor.lastrowid
+        await db.commit()
+    await state.clear()
+    await message.answer(
+        f"✅ <b>«{name}»</b> открыто!\n"
+        f"💸 Потрачено: {cfg['cost']} см  •  Остаток: {size - cfg['cost']} см\n\n"
+        f"Теперь найми сотрудников и купи сырьё для запуска производства."
+    )
+    await _send_biz_panel(biz_id, message.answer)
+
+
+@dp.callback_query(F.data.startswith("biz_view_"))
+async def biz_view_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[9:])
+    await _send_biz_panel(biz_id, callback.message.answer)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_prod_"))
+async def biz_prod_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[9:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_type, name, level, employees, materials, mat_qual, goods, last_prod "
+            "FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("❌ Не найдено", show_alert=True)
+        return
+    biz_type, name, level, employees, materials, mat_qual, goods, last_prod = row
+    cfg = BIZ_TYPES[biz_type]
+    qual = MATERIAL_QUALITY[mat_qual]
+    if last_prod:
+        last_dt = datetime.fromisoformat(last_prod)
+        if last_dt.tzinfo is None:
+            last_dt = MSK.localize(last_dt)
+        if now_msk() < last_dt + timedelta(hours=cfg["prod_h"]):
+            await callback.answer("⏳ Цикл ещё не завершён!", show_alert=True)
+            return
+    if employees < cfg["min_emp"]:
+        await callback.answer(f"❌ Нужно минимум {cfg['min_emp']} сотрудников", show_alert=True)
+        return
+    if materials < cfg["mat_cycle"]:
+        await callback.answer(f"❌ Нужно минимум {cfg['mat_cycle']} ед. сырья", show_alert=True)
+        return
+    salary = employees * cfg["salary"]
+    size, _ = await get_user(user_id)
+    if size < salary:
+        await callback.answer(f"❌ Не хватает на зарплату: {salary} см", show_alert=True)
+        return
+    goods_gain = int(cfg["base_out"] * employees * qual["eff"] * BIZ_LEVEL_MULT[level])
+    now_str = now_msk().isoformat()
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE businesses SET materials=materials-?, goods=goods+?, last_prod=? WHERE biz_id=?",
+            (cfg["mat_cycle"], goods_gain, now_str, biz_id)
+        )
+        await db.commit()
+    await update_size(user_id, size - salary)
+    await callback.message.answer(
+        f"⚙️ <b>Цикл производства завершён!</b>\n"
+        f"{cfg['emoji']} {name}\n━━━━━━━━━━━━━━━\n"
+        f"📦 Произведено: <b>+{goods_gain} см</b>\n"
+        f"💸 Зарплата: <b>−{salary} см</b>\n"
+        f"📉 Сырьё: <b>−{cfg['mat_cycle']} ед.</b>\n"
+        f"💼 На складе: <b>{goods + goods_gain} см</b>"
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_mat_"))
+async def biz_mat_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[8:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT name FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Не найдено", show_alert=True)
+        return
+    name = row[0]
+    btns = []
+    for qual_key, qual in MATERIAL_QUALITY.items():
+        btns.append([InlineKeyboardButton(
+            text=f"{qual['label']} — {qual['price']} см/ед.  (эфф. ×{qual['eff']})",
+            callback_data=f"biz_mq_{biz_id}_{qual_key}"
+        )])
+    await callback.message.answer(
+        f"📦 <b>Сырьё для «{name}»</b>\nВыбери качество:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=btns)
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_mq_"))
+async def biz_mat_qual_cb(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data[7:].split("_", 1)
+    biz_id = int(parts[0])
+    qual_key = parts[1]
+    if qual_key not in MATERIAL_QUALITY:
+        await callback.answer("Неверное качество", show_alert=True)
+        return
+    user_id = callback.from_user.id
+    size, _ = await get_user(user_id)
+    qual = MATERIAL_QUALITY[qual_key]
+    await state.set_state(BizMatState.waiting_qty)
+    await state.update_data(biz_id=biz_id, qual_key=qual_key)
+    await callback.message.answer(
+        f"📦 {qual['label']} — {qual['price']} см/ед.\n"
+        f"💰 Баланс: {size} см\n"
+        f"Сколько единиц купить?\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(BizMatState.waiting_qty)
+async def biz_mat_qty_input(message: Message, state: FSMContext):
+    try:
+        qty = int(message.text.strip())
+        if qty < 1:
+            raise ValueError
+    except ValueError:
+        await message.answer("❌ Введи целое число больше 0.")
+        return
+    data = await state.get_data()
+    biz_id = data["biz_id"]
+    qual_key = data["qual_key"]
+    qual = MATERIAL_QUALITY[qual_key]
+    user_id = message.from_user.id
+    total_cost = qty * qual["price"]
+    size, _ = await get_user(user_id)
+    if size < total_cost:
+        await message.answer(f"❌ Нужно {total_cost} см, у тебя {size} см.")
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT materials FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            await state.clear()
+            return
+        new_mats = row[0] + qty
+        await db.execute(
+            "UPDATE businesses SET materials=?, mat_qual=? WHERE biz_id=?",
+            (new_mats, qual_key, biz_id)
+        )
+        await db.commit()
+    await update_size(user_id, size - total_cost)
+    await state.clear()
+    await message.answer(
+        f"✅ Куплено <b>{qty} ед.</b> сырья ({qual['label']})\n"
+        f"💸 Потрачено: {total_cost} см\n"
+        f"📦 На складе: {new_mats} ед."
+    )
+
+
+@dp.callback_query(F.data.startswith("biz_hire_"))
+async def biz_hire_cb(callback: CallbackQuery, state: FSMContext):
+    biz_id = int(callback.data[9:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_type, name, employees, level FROM businesses WHERE biz_id=? AND owner_id=?",
+            (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Не найдено", show_alert=True)
+        return
+    biz_type, name, employees, level = row
+    cfg = BIZ_TYPES[biz_type]
+    max_emp = 10 * level
+    recruit_fee = cfg["salary"] * 5
+    size, _ = await get_user(user_id)
+    await state.set_state(BizHireState.waiting_count)
+    await state.update_data(biz_id=biz_id, biz_type=biz_type)
+    await callback.message.answer(
+        f"👷 <b>Найм в «{name}»</b>\n"
+        f"Сотрудников: {employees}/{max_emp}\n"
+        f"Единовременный взнос: <b>{recruit_fee} см/чел.</b>\n"
+        f"Зарплата за цикл: <b>{cfg['salary']} см/чел.</b>\n"
+        f"💰 Баланс: {size} см\n"
+        f"Сколько нанять?\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(BizHireState.waiting_count)
+async def biz_hire_input(message: Message, state: FSMContext):
+    try:
+        count = int(message.text.strip())
+        if count < 1:
+            raise ValueError
+    except ValueError:
+        await message.answer("❌ Введи целое число больше 0.")
+        return
+    data = await state.get_data()
+    biz_id = data["biz_id"]
+    biz_type = data["biz_type"]
+    cfg = BIZ_TYPES[biz_type]
+    user_id = message.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT employees, level FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await state.clear()
+        return
+    employees, level = row
+    max_emp = 10 * level
+    if employees + count > max_emp:
+        await message.answer(f"❌ Максимум {max_emp} сотрудников на уровне {level}.")
+        return
+    recruit_fee = cfg["salary"] * 5
+    total_cost = recruit_fee * count
+    size, _ = await get_user(user_id)
+    if size < total_cost:
+        await message.answer(f"❌ Нужно {total_cost} см, у тебя {size} см.")
+        return
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "UPDATE businesses SET employees=employees+? WHERE biz_id=?", (count, biz_id)
+        )
+        await db.commit()
+    await update_size(user_id, size - total_cost)
+    await state.clear()
+    await message.answer(
+        f"✅ Нанято <b>{count}</b> сотрудников!\n"
+        f"💸 Потрачено: {total_cost} см\n"
+        f"👷 Всего: {employees + count}"
+    )
+
+
+@dp.callback_query(F.data.startswith("biz_fire_"))
+async def biz_fire_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[9:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT employees, name FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row or row[0] == 0:
+        await callback.answer("Нечего увольнять", show_alert=True)
+        return
+    employees, name = row
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE businesses SET employees=0 WHERE biz_id=?", (biz_id,))
+        await db.commit()
+    await callback.message.answer(f"👋 Уволено {employees} сотрудников из «{name}».")
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_sell_"))
+async def biz_sell_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[9:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_type, name, goods FROM businesses WHERE biz_id=? AND owner_id=?",
+            (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Не найдено", show_alert=True)
+        return
+    biz_type, name, goods = row
+    if goods <= 0:
+        await callback.answer("Нет товаров для продажи", show_alert=True)
+        return
+    cfg = BIZ_TYPES[biz_type]
+    tax = int(goods * cfg["tax"])
+    received = goods - tax
+    await add_to_bank(tax)
+    size, _ = await get_user(user_id)
+    await update_size(user_id, size + received)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE businesses SET goods=0 WHERE biz_id=?", (biz_id,))
+        await db.commit()
+    await callback.message.answer(
+        f"💰 <b>Товары проданы!</b>\n"
+        f"{cfg['emoji']} {name}\n━━━━━━━━━━━━━━━\n"
+        f"💼 Продано: <b>{goods} см</b>\n"
+        f"🏦 Налог ({int(cfg['tax'] * 100)}%): <b>−{tax} см</b>\n"
+        f"✅ Получено: <b>+{received} см</b>\n"
+        f"🥒 Баланс: <b>{size + received} см</b>"
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("biz_upg_"))
+async def biz_upg_cb(callback: CallbackQuery):
+    biz_id = int(callback.data[8:])
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT biz_type, name, level FROM businesses WHERE biz_id=? AND owner_id=?",
+            (biz_id, user_id)
+        )
+        row = await cursor.fetchone()
+    if not row:
+        await callback.answer("Не найдено", show_alert=True)
+        return
+    biz_type, name, level = row
+    if level >= 5:
+        await callback.answer("Максимальный уровень!", show_alert=True)
+        return
+    cfg = BIZ_TYPES[biz_type]
+    upg_cost = cfg["upg_cost"] * level
+    size, _ = await get_user(user_id)
+    if size < upg_cost:
+        await callback.answer(f"❌ Нужно {upg_cost} см, у тебя {size} см", show_alert=True)
+        return
+    new_level = level + 1
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE businesses SET level=? WHERE biz_id=?", (new_level, biz_id))
+        await db.commit()
+    await update_size(user_id, size - upg_cost)
+    await callback.message.answer(
+        f"⬆️ <b>Улучшение успешно!</b>\n"
+        f"{cfg['emoji']} {name}  Ур.{level} → Ур.{new_level}\n"
+        f"💸 Потрачено: {upg_cost} см\n"
+        f"📈 Производительность: ×{BIZ_LEVEL_MULT[new_level]}"
+    )
+    await callback.answer()
+
+
+# -------------------- ТОТАЛИЗАТОР --------------------
+
+@dp.message(F.text == "🎯 Тотализатор", StateFilter(None))
+async def btn_bet(message: Message, state: FSMContext):
+    if message.chat.type != "private":
+        await message.answer("🎯 Тотализатор доступен только в личных сообщениях с ботом.")
+        return
+    user_id = message.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT ticker, amount FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
+            (user_id, bet_cycle)
+        )
+        existing = await cursor.fetchone()
+        cursor2 = await db.execute(
+            "SELECT ticker, SUM(amount) FROM crypto_bets WHERE cycle=? AND settled=0 GROUP BY ticker",
+            (bet_cycle,)
+        )
+        pool_rows = await cursor2.fetchall()
+    pool = {r[0]: r[1] for r in pool_rows}
+    total_pool = sum(pool.values())
+
+    lines = ["🎯 <b>Тотализатор</b>\n━━━━━━━━━━━━━━━"]
+    lines.append(f"💰 Текущий пул: <b>{total_pool} см</b>  |  Цикл #{bet_cycle}")
+    lines.append("Ставки по монетам:")
+    for ticker, name in VOLATILE_STOCKS.items():
+        price = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
+        staked = pool.get(ticker, 0)
+        lines.append(f"  {name} ({ticker}) — {price:.1f} см  |  поставлено: {staked} см")
+
+    if existing:
+        eticker, eamount = existing
+        lines.append(f"\n✅ Твоя ставка: <b>{VOLATILE_STOCKS.get(eticker, eticker)}</b> на <b>{eamount} см</b>")
+        lines.append("Ждём итогов цикла (обновление каждые 10 мин).")
+        await message.answer("\n".join(lines))
+        return
+
+    lines.append("\n📌 Выбери монету, на которую хочешь поставить:")
+    kb_rows = []
+    tickers = list(VOLATILE_STOCKS.keys())
+    for i in range(0, len(tickers), 2):
+        row = [InlineKeyboardButton(text=tickers[i], callback_data=f"bet_pick_{tickers[i]}")]
+        if i + 1 < len(tickers):
+            row.append(InlineKeyboardButton(text=tickers[i + 1], callback_data=f"bet_pick_{tickers[i + 1]}"))
+        kb_rows.append(row)
+    await message.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
+
+
+@dp.callback_query(F.data.startswith("bet_pick_"))
+async def bet_ticker_cb(callback: CallbackQuery, state: FSMContext):
+    ticker = callback.data[9:]
+    if ticker not in VOLATILE_STOCKS:
+        await callback.answer("Неверный тикер", show_alert=True)
+        return
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT bet_id FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
+            (user_id, bet_cycle)
+        )
+        existing = await cursor.fetchone()
+    if existing:
+        await callback.answer("У тебя уже есть ставка в этом цикле!", show_alert=True)
+        return
+    size, _ = await get_user(user_id)
+    name = VOLATILE_STOCKS[ticker]
+    await state.set_state(BetState.waiting_amount)
+    await state.update_data(ticker=ticker)
+    await callback.message.answer(
+        f"🎯 Ты выбрал <b>{name} ({ticker})</b>\n"
+        f"💰 Твой баланс: <b>{size} см</b>\n\n"
+        f"Введи сумму ставки (мин. 50 см):\n/cancel — отмена"
+    )
+    await callback.answer()
+
+
+@dp.message(BetState.waiting_amount)
+async def bet_amount_input(message: Message, state: FSMContext):
+    try:
+        amount = int(message.text.strip())
+    except ValueError:
+        await message.answer("❌ Введи целое число.")
+        return
+    if amount < 50:
+        await message.answer("❌ Минимальная ставка — 50 см.")
+        return
+    user_id = message.from_user.id
+    size, _ = await get_user(user_id)
+    if size < amount:
+        await message.answer(f"❌ Недостаточно см. У тебя {size} см.")
+        return
+    data = await state.get_data()
+    ticker = data["ticker"]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT bet_id FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
+            (user_id, bet_cycle)
+        )
+        if await cursor.fetchone():
+            await state.clear()
+            await message.answer("❌ Ставка в этом цикле уже существует.")
+            return
+        await db.execute(
+            "INSERT INTO crypto_bets (user_id, ticker, amount, cycle) VALUES (?, ?, ?, ?)",
+            (user_id, ticker, amount, bet_cycle)
+        )
+        await db.commit()
+    new_size = size - amount
+    await update_size(user_id, new_size)
+    await state.clear()
+    name = VOLATILE_STOCKS[ticker]
+    await message.answer(
+        f"✅ <b>Ставка принята!</b>\n"
+        f"🎯 Монета: <b>{name} ({ticker})</b>\n"
+        f"💰 Ставка: <b>{amount} см</b>\n"
+        f"🥒 Остаток: <b>{new_size} см</b>\n\n"
+        f"Итоги придут автоматически после следующего обновления цен (~10 мин)."
+    )
 
 
 # -------------------- ПЕРЕВОДЫ --------------------
@@ -2752,6 +3790,8 @@ async def main():
     bot_info = await bot.get_me()
     BOT_USERNAME = bot_info.username
     asyncio.create_task(update_volatile_prices())
+    asyncio.create_task(luxury_tax_loop())
+    asyncio.create_task(update_real_stock_prices_loop())
     await dp.start_polling(bot)
 
 
