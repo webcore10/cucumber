@@ -3822,8 +3822,13 @@ async def _wa_user(request):
         cur = await db.execute(
             "SELECT size,wins,loses,max_size,name,loan,last_grow FROM users WHERE user_id=?", (uid,))
         row = await cur.fetchone()
-    if not row:
-        return _json({"error": "not found"}, 404)
+        if not row:
+            # Создаём пользователя если открыл webapp первым делом
+            await db.execute(
+                "INSERT OR IGNORE INTO users (user_id, size, name) VALUES (?, 0, ?)",
+                (uid, "Игрок"))
+            await db.commit()
+            row = (0, 0, 0, 0, "Игрок", 0, None)
     size, wins, loses, max_size, name, loan, last_grow = row
     cd = 0
     if last_grow:
