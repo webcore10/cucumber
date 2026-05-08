@@ -4,6 +4,7 @@ import os
 import random
 import aiosqlite
 import aiohttp
+from aiohttp import web as aio_web
 from datetime import datetime, timedelta
 from aiogram.types import LabeledPrice, PreCheckoutQuery, BufferedInputFile
 from aiogram import Bot, Dispatcher, F
@@ -11,7 +12,8 @@ from aiogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton,
     CallbackQuery, BotCommand,
-    BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
+    BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats,
+    WebAppInfo,
 )
 
 try:
@@ -36,9 +38,10 @@ TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-DB_NAME = "data/cucumbers.db"
+DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cucumbers.db")
 ADMIN_ID = 5971748042
 BOT_USERNAME = ""
+WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
 
 def now_msk():
@@ -329,7 +332,7 @@ async def get_portfolio(user_id: int) -> dict:
 # -------------------- БАЗА ДАННЫХ --------------------
 
 async def init_db():
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(os.path.dirname(DB_NAME), exist_ok=True)
     async with aiosqlite.connect(DB_NAME) as db:
         try:
             cursor = await db.execute("PRAGMA table_info(users)")
@@ -478,7 +481,7 @@ async def get_user(user_id: int, name: str = None):
         row = await cursor.fetchone()
         if not row:
             await db.execute(
-                "INSERT INTO users (user_id, size, name) VALUES (?, 0, ?)", (user_id, name)
+                "INSERT OR IGNORE INTO users (user_id, size, name) VALUES (?, 0, ?)", (user_id, name)
             )
             await db.commit()
             return 0, None
@@ -816,6 +819,8 @@ def main_menu_reply_kb(is_group: bool = False) -> ReplyKeyboardMarkup:
         rows.append([KeyboardButton(text="🛡 Клан"), KeyboardButton(text="💸 Перевод")])
         rows.append([KeyboardButton(text="🎯 Тотализатор"), KeyboardButton(text="🏗️ Бизнес")])
         rows.append([KeyboardButton(text="📩 Поддержка")])
+    if WEBAPP_URL:
+        rows.append([KeyboardButton(text="🌐 Веб-приложение", web_app=WebAppInfo(url=WEBAPP_URL))])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
@@ -3780,6 +3785,316 @@ async def set_commands(bot_: Bot):
     await bot_.set_my_commands(private_commands, scope=BotCommandScopeAllPrivateChats())
 
 
+# -------------------- ВЕБ-СЕРВЕР (встроенный) --------------------
+
+WEBAPP_PORT = int(os.environ.get("WEBAPP_PORT", "8080"))
+_WEBAPP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
+_WEBAPP_CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+}
+
+
+def _json(data, status=200):
+    import json
+    return aio_web.Response(
+        text=json.dumps(data, ensure_ascii=False),
+        status=status, content_type="application/json",
+        headers=_WEBAPP_CORS,
+    )
+
+
+async def _wa_index(request):
+    return aio_web.FileResponse(os.path.join(_WEBAPP_DIR, "index.html"))
+
+
+async def _wa_options(request):
+    return aio_web.Response(status=204, headers=_WEBAPP_CORS)
+
+
+async def _wa_user(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT size,wins,loses,max_size,name,loan,last_grow FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, 404)
+    size, wins, loses, max_size, name, loan, last_grow = row
+    cd = 0
+    if last_grow:
+        try:
+            lt = datetime.fromisoformat(last_grow)
+            if lt.tzinfo is None:
+                lt = MSK.localize(lt)
+            cd = max(0, int(3600 - (now_msk() - lt).total_seconds()))
+        except Exception:
+            pass
+    return _json({"user_id": uid, "size": size or 0, "wins": wins or 0,
+                  "loses": loses or 0, "max_size": max_size or 0,
+                  "name": name or "Игрок", "loan": loan or 0, "cooldown_remaining": cd})
+
+
+async def _wa_grow(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size,last_grow,loan FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        size, last_grow, loan = row
+        size = size or 0
+        loan = loan or 0
+        now = now_msk()
+        if last_grow:
+            try:
+                lt = datetime.fromisoformat(last_grow)
+                if lt.tzinfo is None:
+                    lt = MSK.localize(lt)
+                elapsed = (now - lt).total_seconds()
+                if elapsed < 3600:
+                    return _json({"error": "cooldown", "cooldown_remaining": int(3600 - elapsed)}, 429)
+            except Exception:
+                pass
+        gain = random.randint(1, 15)
+        kept, repaid = gain, 0
+        if loan > 0:
+            repay = min(loan, gain)
+            kept, repaid = gain - repay, repay
+            new_loan = loan - repay
+            if new_loan > 0:
+                await db.execute("UPDATE users SET loan=?,loan_date=? WHERE user_id=?",
+                                 (new_loan, now.isoformat(), uid))
+            else:
+                await db.execute("UPDATE users SET loan=0,loan_date=NULL WHERE user_id=?", (uid,))
+        new_size = size + kept
+        cur2 = await db.execute("SELECT max_size FROM users WHERE user_id=?", (uid,))
+        mr = await cur2.fetchone()
+        new_max = max(mr[0] or 0, new_size) if mr else new_size
+        await db.execute("UPDATE users SET size=?,max_size=?,last_grow=? WHERE user_id=?",
+                         (new_size, new_max, now.isoformat(), uid))
+        await db.commit()
+    return _json({"success": True, "gain": gain, "kept": kept, "repaid": repaid,
+                  "new_size": new_size, "cooldown_remaining": 3600})
+
+
+async def _wa_stocks(request):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT ticker,price FROM volatile_stocks")
+        vp = {t: p for t, p in await cur.fetchall()}
+        if not vp:
+            vp = dict(VOLATILE_INITIAL_PRICES)
+        prev_v, real_p, prev_r = {}, {}, {}
+        for tk in VOLATILE_STOCKS:
+            cur2 = await db.execute(
+                "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
+            rows = await cur2.fetchall()
+            prev_v[tk] = rows[1][0] if len(rows) >= 2 else vp.get(tk, 0.0)
+        for tk in STOCKS:
+            cur3 = await db.execute(
+                "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
+            rows = await cur3.fetchall()
+            real_p[tk] = rows[0][0] if rows else 0.0
+            prev_r[tk] = rows[1][0] if len(rows) >= 2 else real_p[tk]
+    result = []
+    for tk, nm in STOCKS.items():
+        pr = real_p.get(tk, 0.0)
+        pv = prev_r.get(tk, pr)
+        ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
+        result.append({"ticker": tk, "name": nm, "price": pr, "change": ch, "type": "stock"})
+    for tk, nm in VOLATILE_STOCKS.items():
+        pr = vp.get(tk, VOLATILE_INITIAL_PRICES.get(tk, 0.0))
+        pv = prev_v.get(tk, pr)
+        ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
+        result.append({"ticker": tk, "name": nm, "price": round(pr, 2), "change": ch, "type": "crypto"})
+    return _json(result)
+
+
+async def _wa_history(request):
+    tk = request.match_info.get("ticker", "").upper()
+    all_s = {**STOCKS, **VOLATILE_STOCKS}
+    if tk not in all_s:
+        return _json({"error": "unknown"}, 404)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT price,recorded_at FROM price_history WHERE ticker=? ORDER BY id ASC LIMIT 72", (tk,))
+        rows = await cur.fetchall()
+        if not rows and tk in VOLATILE_STOCKS:
+            cur2 = await db.execute("SELECT price FROM volatile_stocks WHERE ticker=?", (tk,))
+            r = await cur2.fetchone()
+            if r:
+                rows = [(r[0], now_msk().isoformat())]
+    return _json({"ticker": tk, "name": all_s.get(tk, tk),
+                  "data": [{"price": r[0], "time": r[1]} for r in rows]})
+
+
+async def _wa_top(request):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT user_id,name,size,wins,loses FROM users ORDER BY size DESC LIMIT 20")
+        rows = await cur.fetchall()
+    return _json([{"rank": i+1, "user_id": r[0], "name": r[1] or "Игрок",
+                   "size": r[2] or 0, "wins": r[3] or 0, "loses": r[4] or 0}
+                  for i, r in enumerate(rows)])
+
+
+async def _wa_portfolio(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT ticker,shares FROM portfolios WHERE user_id=? AND shares>0", (uid,))
+        port = await cur.fetchall()
+        cur2 = await db.execute("SELECT ticker,price FROM volatile_stocks")
+        vp = {t: p for t, p in await cur2.fetchall()}
+        rp = {}
+        for tk in STOCKS:
+            cur3 = await db.execute(
+                "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 1", (tk,))
+            r = await cur3.fetchone()
+            rp[tk] = r[0] if r else 0.0
+    all_s = {**STOCKS, **VOLATILE_STOCKS}
+    result, total = [], 0.0
+    for tk, sh in port:
+        pr = vp.get(tk, rp.get(tk, 0.0))
+        val = round(sh * pr, 2)
+        total += val
+        result.append({"ticker": tk, "name": all_s.get(tk, tk),
+                       "shares": sh, "price": round(pr, 2), "value": val})
+    result.sort(key=lambda x: x["value"], reverse=True)
+    return _json({"portfolio": result, "total_value": round(total, 2)})
+
+
+async def _wa_bank(request):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cap = (await (await db.execute("SELECT capital FROM bank WHERE id=1")).fetchone() or [0])[0]
+        uc = (await (await db.execute("SELECT COUNT(*) FROM users")).fetchone())[0]
+        rc = (await (await db.execute("SELECT COUNT(*) FROM users WHERE size>=5000")).fetchone())[0]
+        dt = (await (await db.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM deposits WHERE claimed=0")).fetchone())[0]
+    return _json({"capital": cap, "users_count": uc, "rich_count": rc,
+                  "inflation_rate": round(min(50.0, rc * 3.0), 1), "deposits_total": dt})
+
+
+_SLOT_SYMS = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "🥒"]
+_SLOT_W = [30, 25, 20, 15, 5, 3, 2]
+_SLOT_PAY = {"🥒🥒🥒": 50, "7️⃣7️⃣7️⃣": 25, "💎💎💎": 15,
+             "🍇🍇🍇": 6, "🍊🍊🍊": 5, "🍋🍋🍋": 4, "🍒🍒🍒": 3}
+
+
+async def _wa_slots(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        bet = max(1, int(body.get("bet", 10)))
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        sz = row[0] or 0
+        if sz < bet:
+            return _json({"error": "insufficient", "size": sz}, 400)
+        reels = random.choices(_SLOT_SYMS, weights=_SLOT_W, k=3)
+        key = "".join(reels)
+        mult = _SLOT_PAY.get(key, 0)
+        if mult > 0:
+            net = bet * mult - bet
+        elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+            net = 0
+        else:
+            net = -bet
+        new_sz = sz + net
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_sz, uid))
+        await db.commit()
+    return _json({"reels": reels, "won": net > 0, "push": net == 0,
+                  "multiplier": mult, "net": net, "new_size": new_sz})
+
+
+async def _wa_business(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    _biz = {"farm": ("🌾","Ферма"), "factory": ("🏭","Завод"), "mine": ("⛏️","Шахта"),
+            "brewery": ("🍺","Пивоварня"), "it": ("💻","IT-компания")}
+    async with aiosqlite.connect(DB_NAME) as db:
+        try:
+            cur = await db.execute(
+                "SELECT biz_id,biz_type,name,level,employees,materials,mat_qual,goods,last_prod "
+                "FROM businesses WHERE owner_id=? ORDER BY biz_id", (uid,))
+            rows = await cur.fetchall()
+        except Exception:
+            rows = []
+    result = []
+    for r in rows:
+        em, lb = _biz.get(r[1], ("🏢", r[1]))
+        result.append({"biz_id": r[0], "type": r[1], "emoji": em, "label": lb,
+                        "name": r[2], "level": r[3] or 1, "employees": r[4] or 0,
+                        "materials": r[5] or 0, "mat_qual": r[6] or "low", "goods": r[7] or 0})
+    return _json(result)
+
+
+async def _wa_clan(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        try:
+            cur = await db.execute("SELECT clan_id,role FROM clan_members WHERE user_id=?", (uid,))
+            member = await cur.fetchone()
+            if not member:
+                return _json({"clan": None, "members": []})
+            cid, role = member
+            cur2 = await db.execute("SELECT name,owner_id,treasury FROM clans WHERE clan_id=?", (cid,))
+            clan = await cur2.fetchone()
+            if not clan:
+                return _json({"clan": None, "members": []})
+            cur3 = await db.execute(
+                "SELECT cm.user_id,cm.role,u.name,u.size FROM clan_members cm "
+                "LEFT JOIN users u ON cm.user_id=u.user_id WHERE cm.clan_id=? ORDER BY u.size DESC", (cid,))
+            members = await cur3.fetchall()
+        except Exception:
+            return _json({"clan": None, "members": []})
+    return _json({"clan": {"id": cid, "name": clan[0], "owner_id": clan[1],
+                           "treasury": clan[2] or 0, "my_role": role},
+                  "members": [{"user_id": m[0], "role": m[1], "name": m[2] or "Игрок", "size": m[3] or 0}
+                               for m in members]})
+
+
+async def start_webapp():
+    app = aio_web.Application()
+    app.router.add_get("/", _wa_index)
+    app.router.add_get("/api/user/{user_id}", _wa_user)
+    app.router.add_post("/api/grow/{user_id}", _wa_grow)
+    app.router.add_get("/api/stocks", _wa_stocks)
+    app.router.add_get("/api/history/{ticker}", _wa_history)
+    app.router.add_get("/api/top", _wa_top)
+    app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
+    app.router.add_get("/api/bank", _wa_bank)
+    app.router.add_post("/api/slots/{user_id}", _wa_slots)
+    app.router.add_get("/api/business/{user_id}", _wa_business)
+    app.router.add_get("/api/clan/{user_id}", _wa_clan)
+    app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
+    runner = aio_web.AppRunner(app)
+    await runner.setup()
+    site = aio_web.TCPSite(runner, "0.0.0.0", WEBAPP_PORT)
+    await site.start()
+    print(f"🌐 Веб-сервер запущен на порту {WEBAPP_PORT}")
+
+
 # -------------------- ЗАПУСК --------------------
 
 async def main():
@@ -3792,6 +4107,7 @@ async def main():
     asyncio.create_task(update_volatile_prices())
     asyncio.create_task(luxury_tax_loop())
     asyncio.create_task(update_real_stock_prices_loop())
+    asyncio.create_task(start_webapp())
     await dp.start_polling(bot)
 
 
