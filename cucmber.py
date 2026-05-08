@@ -41,7 +41,7 @@ dp = Dispatcher()
 DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cucumbers.db")
 ADMIN_ID = 5971748042
 BOT_USERNAME = ""
-WEBAPP_URL = os.environ.get("WEBAPP_URL", "https://melcucumber.bothost.tech")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
+WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
 
 def now_msk():
@@ -4079,30 +4079,36 @@ async def _wa_clan(request):
                                for m in members]})
 
 
-async def start_webapp():
+async def _run_webapp_safe():
+    """Запускает веб-сервер в фоне. Любые ошибки логируются, бот продолжает работать."""
     try:
-        app = aio_web.Application()
-        app.router.add_get("/", _wa_index)
-        app.router.add_get("/api/user/{user_id}", _wa_user)
-        app.router.add_post("/api/grow/{user_id}", _wa_grow)
-        app.router.add_get("/api/stocks", _wa_stocks)
-        app.router.add_get("/api/history/{ticker}", _wa_history)
-        app.router.add_get("/api/top", _wa_top)
-        app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
-        app.router.add_get("/api/bank", _wa_bank)
-        app.router.add_post("/api/slots/{user_id}", _wa_slots)
-        app.router.add_get("/api/business/{user_id}", _wa_business)
-        app.router.add_get("/api/clan/{user_id}", _wa_clan)
-        app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
-        runner = aio_web.AppRunner(app)
-        await runner.setup()
-        site = aio_web.TCPSite(runner, "0.0.0.0", WEBAPP_PORT)
-        await site.start()
-        print(f"✅ Веб-сервер запущен: http://0.0.0.0:{WEBAPP_PORT}")
+        await start_webapp()
     except OSError as e:
-        print(f"❌ Веб-сервер не запустился (порт {WEBAPP_PORT} занят или недоступен): {e}")
+        print(f"⚠️ Веб-сервер не запустился (порт {WEBAPP_PORT}): {e}")
     except Exception as e:
-        print(f"❌ Веб-сервер упал с ошибкой: {e}")
+        print(f"⚠️ Веб-сервер ошибка: {e}")
+
+
+async def start_webapp():
+    """Запускает встроенный веб-сервер. Бот работает независимо от этой функции."""
+    app = aio_web.Application()
+    app.router.add_get("/", _wa_index)
+    app.router.add_get("/api/user/{user_id}", _wa_user)
+    app.router.add_post("/api/grow/{user_id}", _wa_grow)
+    app.router.add_get("/api/stocks", _wa_stocks)
+    app.router.add_get("/api/history/{ticker}", _wa_history)
+    app.router.add_get("/api/top", _wa_top)
+    app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
+    app.router.add_get("/api/bank", _wa_bank)
+    app.router.add_post("/api/slots/{user_id}", _wa_slots)
+    app.router.add_get("/api/business/{user_id}", _wa_business)
+    app.router.add_get("/api/clan/{user_id}", _wa_clan)
+    app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
+    runner = aio_web.AppRunner(app)
+    await runner.setup()
+    site = aio_web.TCPSite(runner, "0.0.0.0", WEBAPP_PORT)
+    await site.start()
+    print(f"✅ Веб-сервер запущен: http://0.0.0.0:{WEBAPP_PORT}")
 
 
 # -------------------- ЗАПУСК --------------------
@@ -4114,10 +4120,10 @@ async def main():
     await set_commands(bot)
     bot_info = await bot.get_me()
     BOT_USERNAME = bot_info.username
-    await start_webapp()
     asyncio.create_task(update_volatile_prices())
     asyncio.create_task(luxury_tax_loop())
     asyncio.create_task(update_real_stock_prices_loop())
+    asyncio.create_task(_run_webapp_safe())
     await dp.start_polling(bot)
 
 
