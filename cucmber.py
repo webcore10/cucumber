@@ -33,7 +33,7 @@ import pytz
 
 MSK = pytz.timezone("Europe/Moscow")
 
-TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
+TOKEN = "8707444896:AAGUN2mvuXDOzr5zgAKy2ga_9US2Pl70vik"
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -51,71 +51,45 @@ def now_msk():
 # -------------------- АКЦИИ --------------------
 
 STOCKS = {
-    "AAPL": "🍎 Apple",
-    "TSLA": "⚡ Tesla",
-    "NVDA": "🎮 NVIDIA",
-    "AMZN": "📦 Amazon",
+    "AAPL":  "🍎 Apple",
+    "TSLA":  "⚡ Tesla",
+    "NVDA":  "🎮 NVIDIA",
+    "AMZN":  "📦 Amazon",
     "GOOGL": "🔍 Google",
+    "MSFT":  "🪟 Microsoft",
+    "META":  "👓 Meta",
+    "NFLX":  "🎬 Netflix",
+    "BRKB":  "💼 Berkshire",
+    "JPM":   "🏦 JPMorgan",
+    "V":     "💳 Visa",
+    "JNJ":   "💊 Johnson&Johnson",
+    "WMT":   "🛒 Walmart",
+    "DIS":   "🏰 Disney",
+    "PYPL":  "🔵 PayPal",
+    "INTC":  "🔲 Intel",
+    "AMD":   "🔴 AMD",
+    "ORCL":  "🗄️ Oracle",
+    "CRM":   "☁️ Salesforce",
+    "COIN":  "🪙 Coinbase",
 }
-
-VOLATILE_STOCKS = {
-    "PEPE": "🐸 PepeToken",
-    "DOGE": "🐕 DogeCoin",
-    "SHIB": "💀 ShibaInu",
-    "MOON": "🌙 MoonCoin",
-    "PUMP": "🚀 PumpToken",
-    "CUKE": "🥒 CukeCoin",
-    "MEME": "😂 MemeCoin",
-    "CHAD": "💪 ChadCoin",
-    "REKT": "💸 RektCoin",
-    "BONK": "🔨 BonkToken",
-}
-
-VOLATILE_INITIAL_PRICES = {
-    "PEPE": 50.0, "DOGE": 120.0, "SHIB": 30.0, "MOON": 80.0, "PUMP": 200.0,
-    "CUKE": 100.0, "MEME": 60.0, "CHAD": 150.0, "REKT": 40.0, "BONK": 75.0,
-}
-
-ALL_STOCKS = {**STOCKS, **VOLATILE_STOCKS}
 
 # -------------------- БИЗНЕС — КОНФИГ --------------------
 
 BIZ_TYPES = {
-    "farm":    {"emoji": "🌾", "label": "Ферма",        "cost": 300_000,   "min_emp": 2, "base_out": 10_000,  "mat_cycle": 15, "salary": 2_500,  "tax": 0.10, "upg_cost": 150_000, "prod_h": 4},
-    "factory": {"emoji": "🏭", "label": "Завод",        "cost": 800_000,   "min_emp": 3, "base_out": 15_000,  "mat_cycle": 20, "salary": 4_000,  "tax": 0.15, "upg_cost": 300_000, "prod_h": 4},
-    "mine":    {"emoji": "⛏️",  "label": "Шахта",        "cost": 600_000,   "min_emp": 4, "base_out": 13_000,  "mat_cycle": 30, "salary": 5_500,  "tax": 0.18, "upg_cost": 250_000, "prod_h": 4},
-    "brewery": {"emoji": "🍺", "label": "Пивоварня",    "cost": 500_000,   "min_emp": 2, "base_out": 12_000,  "mat_cycle": 25, "salary": 3_500,  "tax": 0.12, "upg_cost": 200_000, "prod_h": 4},
-    "it":      {"emoji": "💻", "label": "IT-компания",  "cost": 1_200_000, "min_emp": 1, "base_out": 25_000,  "mat_cycle": 5,  "salary": 8_000,  "tax": 0.20, "upg_cost": 500_000, "prod_h": 4},
+    "farm":    {"emoji": "🌾", "label": "Ферма",        "cost": 300,   "min_emp": 2, "base_out": 10,  "mat_cycle": 15, "salary": 3,  "tax": 0.10, "upg_cost": 150, "prod_h": 4},
+    "factory": {"emoji": "🏭", "label": "Завод",        "cost": 800,   "min_emp": 3, "base_out": 15,  "mat_cycle": 20, "salary": 4,  "tax": 0.15, "upg_cost": 300, "prod_h": 4},
+    "mine":    {"emoji": "⛏️",  "label": "Шахта",        "cost": 600,   "min_emp": 4, "base_out": 13,  "mat_cycle": 30, "salary": 6,  "tax": 0.18, "upg_cost": 250, "prod_h": 4},
+    "brewery": {"emoji": "🍺", "label": "Пивоварня",    "cost": 500,   "min_emp": 2, "base_out": 12,  "mat_cycle": 25, "salary": 4,  "tax": 0.12, "upg_cost": 200, "prod_h": 4},
+    "it":      {"emoji": "💻", "label": "IT-компания",  "cost": 1200,  "min_emp": 1, "base_out": 25,  "mat_cycle": 5,  "salary": 8,  "tax": 0.20, "upg_cost": 500, "prod_h": 4},
 }
 
 MATERIAL_QUALITY = {
-    "low":    {"label": "🟤 Эконом",   "price": 300,  "eff": 0.7},
-    "medium": {"label": "🔵 Стандарт", "price": 900,  "eff": 1.2},
-    "high":   {"label": "💎 Премиум",  "price": 2000, "eff": 2.0},
+    "low":    {"label": "🟤 Эконом",   "price": 1,  "eff": 0.7},
+    "medium": {"label": "🔵 Стандарт", "price": 1,  "eff": 1.2},
+    "high":   {"label": "💎 Премиум",  "price": 2,  "eff": 2.0},
 }
 
 BIZ_LEVEL_MULT = {1: 1.0, 2: 1.5, 3: 2.0, 4: 2.8, 5: 4.0}
-volatile_prices: dict = {}
-casino_wagered: int = 0
-bet_cycle: int = 0
-
-
-async def load_volatile_prices():
-    global volatile_prices
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute("SELECT ticker, price FROM volatile_stocks")
-        rows = await cursor.fetchall()
-    volatile_prices = {t: p for t, p in rows} if rows else dict(VOLATILE_INITIAL_PRICES)
-
-
-async def save_volatile_prices():
-    async with aiosqlite.connect(DB_NAME) as db:
-        for ticker, price in volatile_prices.items():
-            await db.execute(
-                "INSERT OR REPLACE INTO volatile_stocks (ticker, price) VALUES (?, ?)",
-                (ticker, price)
-            )
-        await db.commit()
 
 
 async def get_total_ticker_shares(ticker: str) -> float:
@@ -125,114 +99,6 @@ async def get_total_ticker_shares(ticker: str) -> float:
         )
         row = await cursor.fetchone()
     return row[0] if row else 0.0
-
-
-async def settle_crypto_bets(old_prices: dict, new_prices: dict):
-    global bet_cycle
-    pct_changes = {}
-    for ticker in VOLATILE_STOCKS:
-        old = old_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
-        new = new_prices.get(ticker, old)
-        pct_changes[ticker] = ((new - old) / old * 100) if old else 0.0
-
-    winner = max(pct_changes, key=lambda t: pct_changes[t])
-    winner_pct = pct_changes[winner]
-
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT bet_id, user_id, ticker, amount FROM crypto_bets WHERE settled=0 AND cycle=?",
-            (bet_cycle,)
-        )
-        bets = await cursor.fetchall()
-        if bets:
-            total_pool = sum(b[3] for b in bets)
-            winning_bets = [b for b in bets if b[2] == winner and winner_pct > 0]
-            losing_bets = [b for b in bets if b not in winning_bets]
-            winning_amount = sum(b[3] for b in winning_bets)
-
-            if winning_amount > 0 and winner_pct > 0:
-                house_cut = max(1, int(total_pool * 0.05))
-                await db.execute("UPDATE bank SET capital = capital + ? WHERE id = 1", (house_cut,))
-                payout_pool = total_pool - house_cut
-                for bet_id, user_id, ticker, amount in winning_bets:
-                    payout = max(1, int(payout_pool * amount / winning_amount))
-                    await db.execute("UPDATE users SET size = size + ? WHERE user_id=?", (payout, user_id))
-                    await db.execute("UPDATE crypto_bets SET settled=1, won=1 WHERE bet_id=?", (bet_id,))
-                    try:
-                        await bot.send_message(
-                            user_id,
-                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
-                            f"🏆 Победитель: {VOLATILE_STOCKS[winner]} (+{winner_pct:.1f}%)\n"
-                            f"✅ Ты поставил правильно!\n"
-                            f"💰 Выигрыш: <b>+{payout} см</b>"
-                        )
-                    except Exception:
-                        pass
-            else:
-                await db.execute("UPDATE bank SET capital = capital + ? WHERE id = 1", (total_pool,))
-
-            for bet_id, user_id, ticker, amount in losing_bets:
-                await db.execute("UPDATE crypto_bets SET settled=1 WHERE bet_id=?", (bet_id,))
-                try:
-                    if winner_pct > 0:
-                        await bot.send_message(
-                            user_id,
-                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
-                            f"🏆 Победитель: {VOLATILE_STOCKS[winner]} (+{winner_pct:.1f}%)\n"
-                            f"❌ Твой выбор ({VOLATILE_STOCKS.get(ticker, ticker)}) не выиграл\n"
-                            f"📉 -{amount} см"
-                        )
-                    else:
-                        await bot.send_message(
-                            user_id,
-                            f"🎯 <b>Тотализатор — итоги цикла</b>\n"
-                            f"📉 Все монеты упали — никто не выиграл\n"
-                            f"💸 -{amount} см ушли в банк"
-                        )
-                except Exception:
-                    pass
-        await db.commit()
-    bet_cycle += 1
-
-
-async def update_volatile_prices():
-    global volatile_prices, casino_wagered
-    while True:
-        await asyncio.sleep(600)
-        capital = await get_bank_capital()
-        wagered = casino_wagered
-        casino_wagered = 0
-        inflation = await get_inflation_rate()
-        bank_stability = min(0.20, capital / 500_000)
-        casino_boost = min(0.25, wagered / 50_000)
-        inflation_push = inflation * 0.04
-        now_str = now_msk().isoformat()
-        old_prices = dict(volatile_prices)
-        async with aiosqlite.connect(DB_NAME) as db:
-            for ticker in VOLATILE_STOCKS:
-                current = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
-                total_shares = await get_total_ticker_shares(ticker)
-                demand_boost = min(0.15, total_shares / 2000 * 0.15)
-                volatility = 0.28 + casino_boost
-                change = random.uniform(-volatility, volatility * 1.5)
-                if change < 0:
-                    change *= (1 - bank_stability)
-                change += demand_boost + inflation_push
-                new_price = round(max(1.0, min(50000.0, current * (1 + change))), 2)
-                volatile_prices[ticker] = new_price
-                await db.execute(
-                    "INSERT INTO price_history (ticker, price, recorded_at) VALUES (?, ?, ?)",
-                    (ticker, new_price, now_str)
-                )
-            for ticker in VOLATILE_STOCKS:
-                await db.execute(
-                    """DELETE FROM price_history WHERE ticker=? AND id NOT IN (
-                       SELECT id FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 144
-                    )""", (ticker, ticker)
-                )
-            await db.commit()
-        await save_volatile_prices()
-        await settle_crypto_bets(old_prices, volatile_prices)
 
 
 async def update_real_stock_prices_loop():
@@ -316,7 +182,6 @@ async def get_stock_prices() -> dict:
                     prices[ticker] = round(data["chart"]["result"][0]["meta"]["regularMarketPrice"], 2)
             except Exception:
                 prices[ticker] = 0.0
-    prices.update(volatile_prices)
     return prices
 
 
@@ -384,16 +249,6 @@ async def init_db():
         )""")
         await db.execute("INSERT OR IGNORE INTO bank (id, capital) VALUES (1, 0)")
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS volatile_stocks (
-            ticker TEXT PRIMARY KEY,
-            price  REAL NOT NULL
-        )""")
-        for ticker, price in VOLATILE_INITIAL_PRICES.items():
-            await db.execute(
-                "INSERT OR IGNORE INTO volatile_stocks (ticker, price) VALUES (?, ?)",
-                (ticker, price)
-            )
-        await db.execute("""
         CREATE TABLE IF NOT EXISTS clans (
             clan_id      INTEGER PRIMARY KEY AUTOINCREMENT,
             name         TEXT UNIQUE NOT NULL,
@@ -427,16 +282,6 @@ async def init_db():
             claimed    INTEGER DEFAULT 0
         )""")
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS crypto_bets (
-            bet_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id  INTEGER NOT NULL,
-            ticker   TEXT NOT NULL,
-            amount   INTEGER NOT NULL,
-            cycle    INTEGER NOT NULL,
-            settled  INTEGER DEFAULT 0,
-            won      INTEGER DEFAULT 0
-        )""")
-        await db.execute("""
         CREATE TABLE IF NOT EXISTS businesses (
             biz_id     INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_id   INTEGER NOT NULL,
@@ -448,10 +293,25 @@ async def init_db():
             mat_qual   TEXT DEFAULT 'low',
             goods      INTEGER DEFAULT 0,
             last_prod  TEXT,
-            created_at TEXT NOT NULL
+            created_at TEXT
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS backgammon_games (
+            game_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            player1_id INTEGER NOT NULL,
+            player2_id INTEGER,
+            bet        INTEGER NOT NULL DEFAULT 0,
+            state_json TEXT,
+            status     TEXT DEFAULT 'waiting',
+            winner_id  INTEGER,
+            created_at TEXT
         )""")
         try:
             await db.execute("ALTER TABLE clans ADD COLUMN treasury INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE businesses ADD COLUMN created_at TEXT")
         except Exception:
             pass
         await db.commit()
@@ -656,7 +516,7 @@ async def generate_price_chart(ticker: str) -> io.BytesIO | None:
         rows = await cursor.fetchall()
     if len(rows) < 2:
         return None
-    name = VOLATILE_STOCKS.get(ticker, ticker)
+    name = STOCKS.get(ticker, ticker)
     try:
         buf = await asyncio.to_thread(_render_chart_sync, ticker, name, rows)
     except Exception:
@@ -801,7 +661,7 @@ BUTTON_TEXTS = frozenset({
     "🌱 Вырастить", "📊 Статистика", "🎁 Лутбокс", "🎰 Слоты",
     "📈 Рынок акций", "💼 Forbes", "🏦 Банк", "🛒 Магазин",
     "🏆 Топ чата", "⚔️ Бой", "🛡 Клан", "📩 Поддержка", "💸 Перевод",
-    "🎯 Тотализатор", "🏗️ Бизнес",
+    "🏗️ Бизнес",
 })
 
 
@@ -817,7 +677,7 @@ def main_menu_reply_kb(is_group: bool = False) -> ReplyKeyboardMarkup:
         rows.append([KeyboardButton(text="🛡 Клан")])
     else:
         rows.append([KeyboardButton(text="🛡 Клан"), KeyboardButton(text="💸 Перевод")])
-        rows.append([KeyboardButton(text="🎯 Тотализатор"), KeyboardButton(text="🏗️ Бизнес")])
+        rows.append([KeyboardButton(text="🏗️ Бизнес")])
         rows.append([KeyboardButton(text="📩 Поддержка")])
     if WEBAPP_URL:
         rows.append([KeyboardButton(text="🌐 Веб-приложение", web_app=WebAppInfo(url=WEBAPP_URL))])
@@ -887,10 +747,6 @@ class DepositState(StatesGroup):
 
 class AdminReplyState(StatesGroup):
     waiting_reply = State()
-
-
-class BetState(StatesGroup):
-    waiting_amount = State()
 
 
 class ClanTreasuryState(StatesGroup):
@@ -1244,7 +1100,7 @@ async def _do_stats(user, chat_id: int, is_private: bool) -> tuple[str, InlineKe
         price = prices.get(ticker, 0)
         value = int(shares * price)
         portfolio_total += value
-        portfolio_lines += f"  {ALL_STOCKS.get(ticker, ticker)}: {shares:g} шт × {price:.0f} = <b>{value} см</b>\n"
+        portfolio_lines += f"  {STOCKS.get(ticker, ticker)}: {shares:g} шт × {price:.0f} = <b>{value} см</b>\n"
     portfolio_block = ""
     if portfolio_lines:
         portfolio_block = (
@@ -1370,7 +1226,6 @@ async def _do_forbes() -> tuple[str, InlineKeyboardMarkup]:
 
 
 async def _do_slots(user, chat_id: int, is_private: bool, amount: int, answer_fn):
-    global casino_wagered
     user_id = user.id
     if not is_private:
         await save_user_chat(user_id, chat_id)
@@ -1382,7 +1237,6 @@ async def _do_slots(user, chat_id: int, is_private: bool, amount: int, answer_fn
         )
         return
     await update_size(user_id, size - amount)
-    casino_wagered += amount
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎰 Крутить!", callback_data=f"slot_{user_id}_{amount}")]
     ])
@@ -2232,46 +2086,19 @@ async def cmd_forbes_cb(callback: CallbackQuery):
 # -------------------- MARKET --------------------
 
 async def _send_market(answer_fn):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📊 Реальные акции", callback_data="mkt_tab_stocks"),
-            InlineKeyboardButton(text="🎲 Криптовалюта", callback_data="mkt_tab_crypto"),
-        ]
-    ])
-    await answer_fn("📈 <b>Рынок</b>\n\nВыбери раздел:", reply_markup=kb)
-
-
-async def _send_market_stocks(answer_fn):
     prices = await get_stock_prices()
-    lines = "📊 <b>Реальные акции</b> (1$ = 1 см):\n\n"
+    lines = "📈 <b>Рынок акций</b> (1$ = 1 см):\n\n"
     for ticker, name in STOCKS.items():
         price = prices.get(ticker, 0)
-        lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/акция</b>\n"
+        lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см</b>\n"
     buttons = []
     for ticker, name in STOCKS.items():
+        nm = name.split(' ', 1)[1] if ' ' in name else name
         buttons.append([
-            InlineKeyboardButton(text=f"🛒 {name.split()[1]}", callback_data=f"mkt_buy_{ticker}"),
-            InlineKeyboardButton(text=f"💸 Продать {ticker}", callback_data=f"mkt_sell_{ticker}"),
-            InlineKeyboardButton(text="📈 График", callback_data=f"mkt_chart_{ticker}"),
-        ])
-    buttons.append([InlineKeyboardButton(text="🎲 Перейти к крипто", callback_data="mkt_tab_crypto")])
-    await answer_fn(lines, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
-
-
-async def _send_market_crypto(answer_fn):
-    prices = await get_stock_prices()
-    lines = "🎲 <b>Криптовалюта</b> (цена меняется каждые 10 мин):\n\n"
-    for ticker, name in VOLATILE_STOCKS.items():
-        price = prices.get(ticker, 0)
-        lines += f"{name} (<code>{ticker}</code>): <b>{price:.0f} см/токен</b>\n"
-    buttons = []
-    for ticker in VOLATILE_STOCKS:
-        buttons.append([
-            InlineKeyboardButton(text=f"🛒 {ticker}", callback_data=f"mkt_buy_{ticker}"),
+            InlineKeyboardButton(text=f"🛒 {nm}", callback_data=f"mkt_buy_{ticker}"),
             InlineKeyboardButton(text=f"💸 Продать", callback_data=f"mkt_sell_{ticker}"),
             InlineKeyboardButton(text="📈 График", callback_data=f"mkt_chart_{ticker}"),
         ])
-    buttons.append([InlineKeyboardButton(text="📊 Перейти к акциям", callback_data="mkt_tab_stocks")])
     await answer_fn(lines, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 
@@ -2293,35 +2120,25 @@ async def cmd_market_cb(callback: CallbackQuery):
 @dp.callback_query(F.data == "mkt_tab_stocks")
 async def mkt_tab_stocks_cb(callback: CallbackQuery):
     await callback.message.answer("⏳ Получаем котировки...")
-    await _send_market_stocks(callback.message.answer)
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "mkt_tab_crypto")
-async def mkt_tab_crypto_cb(callback: CallbackQuery):
-    await _send_market_crypto(callback.message.answer)
+    await _send_market(callback.message.answer)
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("mkt_chart_"))
 async def mkt_chart_cb(callback: CallbackQuery):
     ticker = callback.data[10:]
-    if ticker not in ALL_STOCKS:
+    if ticker not in STOCKS:
         await callback.answer("Неверный тикер", show_alert=True)
         return
     await callback.answer("⏳ Генерируем график...")
     chart_buf = await generate_price_chart(ticker)
     if chart_buf is None:
-        if ticker in VOLATILE_STOCKS:
-            hint = "≈10–20 мин (крипто обновляется каждые 10 мин)"
-        else:
-            hint = "≈1–2 ч (акции сохраняются раз в час)"
         await callback.message.answer(
             f"❌ Данных для графика {ticker} ещё нет.\n"
-            f"График появится через {hint}."
+            f"График появится через ≈1–2 ч (акции сохраняются раз в час)."
         )
         return
-    name = ALL_STOCKS.get(ticker, ticker)
+    name = STOCKS.get(ticker, ticker)
     await callback.message.answer_photo(
         BufferedInputFile(chart_buf.read(), filename=f"{ticker}.png"),
         caption=f"📈 <b>График {name} ({ticker})</b>"
@@ -2331,7 +2148,7 @@ async def mkt_chart_cb(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("mkt_buy_"))
 async def market_buy_cb(callback: CallbackQuery, state: FSMContext):
     ticker = callback.data[8:]
-    name = ALL_STOCKS.get(ticker, ticker)
+    name = STOCKS.get(ticker, ticker)
     prices = await get_stock_prices()
     price = prices.get(ticker, 0)
     await state.set_state(MarketState.waiting_buy)
@@ -2384,7 +2201,7 @@ async def market_buy_amount(message: Message, state: FSMContext):
         )
         await db.commit()
     await message.answer(
-        f"✅ Куплено <b>{shares_to_buy:g}</b> акций {ALL_STOCKS.get(ticker, ticker)}\n"
+        f"✅ Куплено <b>{shares_to_buy:g}</b> акций {STOCKS.get(ticker, ticker)}\n"
         f"💸 Потрачено: {cost} см\n📊 Цена покупки: {price:.0f} см/акция",
         reply_markup=menu_kb()
     )
@@ -2400,7 +2217,7 @@ async def market_sell_cb(callback: CallbackQuery, state: FSMContext):
     if shares <= 0:
         await callback.answer("У тебя нет этих акций 📭", show_alert=True)
         return
-    name = ALL_STOCKS.get(ticker, ticker)
+    name = STOCKS.get(ticker, ticker)
     await state.set_state(MarketState.waiting_sell)
     await state.update_data(ticker=ticker)
     await callback.message.answer(
@@ -2458,7 +2275,7 @@ async def market_sell_amount(message: Message, state: FSMContext):
     size, _ = await get_user(user_id)
     await update_size(user_id, size + earned)
     await message.answer(
-        f"✅ Продано <b>{sell_shares:.4f}</b> акций {ALL_STOCKS.get(ticker, ticker)}\n"
+        f"✅ Продано <b>{sell_shares:.4f}</b> акций {STOCKS.get(ticker, ticker)}\n"
         f"💰 Сумма: {gross} см  •  Комиссия 5%: -{commission} см\n"
         f"📥 Получено: <b>+{earned} см</b>\n🥒 Огурец: {size + earned} см",
         reply_markup=menu_kb()
@@ -3408,126 +3225,6 @@ async def biz_upg_cb(callback: CallbackQuery):
     await callback.answer()
 
 
-# -------------------- ТОТАЛИЗАТОР --------------------
-
-@dp.message(F.text == "🎯 Тотализатор", StateFilter(None))
-async def btn_bet(message: Message, state: FSMContext):
-    if message.chat.type != "private":
-        await message.answer("🎯 Тотализатор доступен только в личных сообщениях с ботом.")
-        return
-    user_id = message.from_user.id
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT ticker, amount FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
-            (user_id, bet_cycle)
-        )
-        existing = await cursor.fetchone()
-        cursor2 = await db.execute(
-            "SELECT ticker, SUM(amount) FROM crypto_bets WHERE cycle=? AND settled=0 GROUP BY ticker",
-            (bet_cycle,)
-        )
-        pool_rows = await cursor2.fetchall()
-    pool = {r[0]: r[1] for r in pool_rows}
-    total_pool = sum(pool.values())
-
-    lines = ["🎯 <b>Тотализатор</b>\n━━━━━━━━━━━━━━━"]
-    lines.append(f"💰 Текущий пул: <b>{total_pool} см</b>  |  Цикл #{bet_cycle}")
-    lines.append("Ставки по монетам:")
-    for ticker, name in VOLATILE_STOCKS.items():
-        price = volatile_prices.get(ticker, VOLATILE_INITIAL_PRICES[ticker])
-        staked = pool.get(ticker, 0)
-        lines.append(f"  {name} ({ticker}) — {price:.1f} см  |  поставлено: {staked} см")
-
-    if existing:
-        eticker, eamount = existing
-        lines.append(f"\n✅ Твоя ставка: <b>{VOLATILE_STOCKS.get(eticker, eticker)}</b> на <b>{eamount} см</b>")
-        lines.append("Ждём итогов цикла (обновление каждые 10 мин).")
-        await message.answer("\n".join(lines))
-        return
-
-    lines.append("\n📌 Выбери монету, на которую хочешь поставить:")
-    kb_rows = []
-    tickers = list(VOLATILE_STOCKS.keys())
-    for i in range(0, len(tickers), 2):
-        row = [InlineKeyboardButton(text=tickers[i], callback_data=f"bet_pick_{tickers[i]}")]
-        if i + 1 < len(tickers):
-            row.append(InlineKeyboardButton(text=tickers[i + 1], callback_data=f"bet_pick_{tickers[i + 1]}"))
-        kb_rows.append(row)
-    await message.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
-
-
-@dp.callback_query(F.data.startswith("bet_pick_"))
-async def bet_ticker_cb(callback: CallbackQuery, state: FSMContext):
-    ticker = callback.data[9:]
-    if ticker not in VOLATILE_STOCKS:
-        await callback.answer("Неверный тикер", show_alert=True)
-        return
-    user_id = callback.from_user.id
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT bet_id FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
-            (user_id, bet_cycle)
-        )
-        existing = await cursor.fetchone()
-    if existing:
-        await callback.answer("У тебя уже есть ставка в этом цикле!", show_alert=True)
-        return
-    size, _ = await get_user(user_id)
-    name = VOLATILE_STOCKS[ticker]
-    await state.set_state(BetState.waiting_amount)
-    await state.update_data(ticker=ticker)
-    await callback.message.answer(
-        f"🎯 Ты выбрал <b>{name} ({ticker})</b>\n"
-        f"💰 Твой баланс: <b>{size} см</b>\n\n"
-        f"Введи сумму ставки (мин. 50 см):\n/cancel — отмена"
-    )
-    await callback.answer()
-
-
-@dp.message(BetState.waiting_amount)
-async def bet_amount_input(message: Message, state: FSMContext):
-    try:
-        amount = int(message.text.strip())
-    except ValueError:
-        await message.answer("❌ Введи целое число.")
-        return
-    if amount < 50:
-        await message.answer("❌ Минимальная ставка — 50 см.")
-        return
-    user_id = message.from_user.id
-    size, _ = await get_user(user_id)
-    if size < amount:
-        await message.answer(f"❌ Недостаточно см. У тебя {size} см.")
-        return
-    data = await state.get_data()
-    ticker = data["ticker"]
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT bet_id FROM crypto_bets WHERE user_id=? AND cycle=? AND settled=0",
-            (user_id, bet_cycle)
-        )
-        if await cursor.fetchone():
-            await state.clear()
-            await message.answer("❌ Ставка в этом цикле уже существует.")
-            return
-        await db.execute(
-            "INSERT INTO crypto_bets (user_id, ticker, amount, cycle) VALUES (?, ?, ?, ?)",
-            (user_id, ticker, amount, bet_cycle)
-        )
-        await db.commit()
-    new_size = size - amount
-    await update_size(user_id, new_size)
-    await state.clear()
-    name = VOLATILE_STOCKS[ticker]
-    await message.answer(
-        f"✅ <b>Ставка принята!</b>\n"
-        f"🎯 Монета: <b>{name} ({ticker})</b>\n"
-        f"💰 Ставка: <b>{amount} см</b>\n"
-        f"🥒 Остаток: <b>{new_size} см</b>\n\n"
-        f"Итоги придут автоматически после следующего обновления цен (~10 мин)."
-    )
-
-
 # -------------------- ПЕРЕВОДЫ --------------------
 
 @dp.message(F.text == "💸 Перевод", StateFilter(None))
@@ -3836,7 +3533,7 @@ async def _wa_user(request):
             lt = datetime.fromisoformat(last_grow)
             if lt.tzinfo is None:
                 lt = MSK.localize(lt)
-            cd = max(0, int(3600 - (now_msk() - lt).total_seconds()))
+            cd = max(0, int(86400 - (now_msk() - lt).total_seconds()))
         except Exception:
             pass
     return _json({"user_id": uid, "size": size or 0, "wins": wins or 0,
@@ -3864,8 +3561,8 @@ async def _wa_grow(request):
                 if lt.tzinfo is None:
                     lt = MSK.localize(lt)
                 elapsed = (now - lt).total_seconds()
-                if elapsed < 3600:
-                    return _json({"error": "cooldown", "cooldown_remaining": int(3600 - elapsed)}, 429)
+                if elapsed < 86400:
+                    return _json({"error": "cooldown", "cooldown_remaining": int(86400 - elapsed)}, 429)
             except Exception:
                 pass
         gain = random.randint(1, 15)
@@ -3887,25 +3584,16 @@ async def _wa_grow(request):
                          (new_size, new_max, now.isoformat(), uid))
         await db.commit()
     return _json({"success": True, "gain": gain, "kept": kept, "repaid": repaid,
-                  "new_size": new_size, "cooldown_remaining": 3600})
+                  "new_size": new_size, "cooldown_remaining": 86400})
 
 
 async def _wa_stocks(request):
+    real_p, prev_r = {}, {}
     async with aiosqlite.connect(DB_NAME) as db:
-        cur = await db.execute("SELECT ticker,price FROM volatile_stocks")
-        vp = {t: p for t, p in await cur.fetchall()}
-        if not vp:
-            vp = dict(VOLATILE_INITIAL_PRICES)
-        prev_v, real_p, prev_r = {}, {}, {}
-        for tk in VOLATILE_STOCKS:
-            cur2 = await db.execute(
-                "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
-            rows = await cur2.fetchall()
-            prev_v[tk] = rows[1][0] if len(rows) >= 2 else vp.get(tk, 0.0)
         for tk in STOCKS:
-            cur3 = await db.execute(
+            cur = await db.execute(
                 "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
-            rows = await cur3.fetchall()
+            rows = await cur.fetchall()
             real_p[tk] = rows[0][0] if rows else 0.0
             prev_r[tk] = rows[1][0] if len(rows) >= 2 else real_p[tk]
     result = []
@@ -3914,29 +3602,18 @@ async def _wa_stocks(request):
         pv = prev_r.get(tk, pr)
         ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
         result.append({"ticker": tk, "name": nm, "price": pr, "change": ch, "type": "stock"})
-    for tk, nm in VOLATILE_STOCKS.items():
-        pr = vp.get(tk, VOLATILE_INITIAL_PRICES.get(tk, 0.0))
-        pv = prev_v.get(tk, pr)
-        ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
-        result.append({"ticker": tk, "name": nm, "price": round(pr, 2), "change": ch, "type": "crypto"})
     return _json(result)
 
 
 async def _wa_history(request):
     tk = request.match_info.get("ticker", "").upper()
-    all_s = {**STOCKS, **VOLATILE_STOCKS}
-    if tk not in all_s:
+    if tk not in STOCKS:
         return _json({"error": "unknown"}, 404)
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute(
             "SELECT price,recorded_at FROM price_history WHERE ticker=? ORDER BY id ASC LIMIT 72", (tk,))
         rows = await cur.fetchall()
-        if not rows and tk in VOLATILE_STOCKS:
-            cur2 = await db.execute("SELECT price FROM volatile_stocks WHERE ticker=?", (tk,))
-            r = await cur2.fetchone()
-            if r:
-                rows = [(r[0], now_msk().isoformat())]
-    return _json({"ticker": tk, "name": all_s.get(tk, tk),
+    return _json({"ticker": tk, "name": STOCKS.get(tk, tk),
                   "data": [{"price": r[0], "time": r[1]} for r in rows]})
 
 
@@ -3959,21 +3636,20 @@ async def _wa_portfolio(request):
         cur = await db.execute(
             "SELECT ticker,shares FROM portfolios WHERE user_id=? AND shares>0", (uid,))
         port = await cur.fetchall()
-        cur2 = await db.execute("SELECT ticker,price FROM volatile_stocks")
-        vp = {t: p for t, p in await cur2.fetchall()}
         rp = {}
         for tk in STOCKS:
             cur3 = await db.execute(
                 "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 1", (tk,))
             r = await cur3.fetchone()
             rp[tk] = r[0] if r else 0.0
-    all_s = {**STOCKS, **VOLATILE_STOCKS}
     result, total = [], 0.0
     for tk, sh in port:
-        pr = vp.get(tk, rp.get(tk, 0.0))
+        if tk not in STOCKS:
+            continue  # skip old/removed tickers
+        pr = rp.get(tk, 0.0)
         val = round(sh * pr, 2)
         total += val
-        result.append({"ticker": tk, "name": all_s.get(tk, tk),
+        result.append({"ticker": tk, "name": STOCKS.get(tk, tk),
                        "shares": sh, "price": round(pr, 2), "value": val})
     result.sort(key=lambda x: x["value"], reverse=True)
     return _json({"portfolio": result, "total_value": round(total, 2)})
@@ -4079,6 +3755,544 @@ async def _wa_clan(request):
                                for m in members]})
 
 
+# ── Нарды: игровая логика ─────────────────────────────────────────────────────
+
+import copy, json as _json_mod
+
+def _bg_new_state():
+    board = [0]*24
+    board[23]=2; board[12]=5; board[7]=3; board[5]=5
+    board[0]=-2; board[11]=-5; board[16]=-3; board[18]=-5
+    d1,d2 = random.randint(1,6), random.randint(1,6)
+    while d1==d2:
+        d1,d2 = random.randint(1,6), random.randint(1,6)
+    first = 1 if d1>d2 else 2
+    return {"board":board,"bar":[0,0],"off":[0,0],
+            "dice":[d1,d2],"moves_left":[d1,d2],"current":first}
+
+def _bg_all_home(st, p):
+    b=st["board"]; bar=st["bar"]
+    if bar[p-1]>0: return False
+    if p==1: return all(v<=0 for v in b[6:])
+    return all(v>=0 for v in b[:18])
+
+def _bg_bear_ok(st, p, idx, die):
+    b=st["board"]
+    if not _bg_all_home(st,p): return False
+    if p==1:
+        if idx-die<0: return all(b[i]<=0 for i in range(idx+1,6))
+    else:
+        if idx+die>23: return all(b[i]>=0 for i in range(18,idx))
+    return False
+
+def _bg_valid(st):
+    board=st["board"]; bar=st["bar"]; ml=st["moves_left"]; p=st["current"]
+    ud=list(set(ml)); res=[]
+    if bar[p-1]>0:
+        for d in ud:
+            tgt=(24-d) if p==1 else (d-1)
+            if 0<=tgt<=23:
+                tv=board[tgt]
+                if (p==1 and tv>=-1) or (p==2 and tv<=1):
+                    res.append((-1,d))
+        return res
+    for i in range(24):
+        v=board[i]
+        if not((p==1 and v>0) or (p==2 and v<0)): continue
+        for d in ud:
+            if p==1:
+                t=i-d
+                if t>=0 and board[t]>=-1: res.append((i,d))
+                elif t<0 and _bg_bear_ok(st,p,i,d): res.append((i,d))
+            else:
+                t=i+d
+                if t<=23 and board[t]<=1: res.append((i,d))
+                elif t>23 and _bg_bear_ok(st,p,i,d): res.append((i,d))
+    return list(set(res))
+
+def _bg_move(st, frm, die):
+    st=copy.deepcopy(st)
+    b=st["board"]; bar=st["bar"]; off=st["off"]; p=st["current"]
+    if frm==-1:
+        if bar[p-1]<=0: return None
+        tgt=(24-die) if p==1 else (die-1)
+        if not(0<=tgt<=23): return None
+        tv=b[tgt]
+        if p==1:
+            if tv<-1: return None
+            if tv==-1: b[tgt]=1; bar[1]+=1
+            else: b[tgt]+=1
+        else:
+            if tv>1: return None
+            if tv==1: b[tgt]=-1; bar[0]+=1
+            else: b[tgt]-=1
+        bar[p-1]-=1
+    else:
+        if p==1:
+            if b[frm]<=0: return None
+            tgt=frm-die
+            if tgt<0:
+                if not _bg_bear_ok(st,p,frm,die): return None
+                b[frm]-=1; off[0]+=1
+            else:
+                tv=b[tgt]
+                if tv<-1: return None
+                if tv==-1: b[tgt]=1; bar[1]+=1
+                else: b[tgt]+=1
+                b[frm]-=1
+        else:
+            if b[frm]>=0: return None
+            tgt=frm+die
+            if tgt>23:
+                if not _bg_bear_ok(st,p,frm,die): return None
+                b[frm]+=1; off[1]+=1
+            else:
+                tv=b[tgt]
+                if tv>1: return None
+                if tv==1: b[tgt]=-1; bar[0]+=1
+                else: b[tgt]-=1
+                b[frm]+=1
+    ml=list(st["moves_left"])
+    if die in ml: ml.remove(die)
+    st["moves_left"]=ml
+    if off[0]>=15: st["winner"]=1
+    elif off[1]>=15: st["winner"]=2
+    if not ml and "winner" not in st:
+        np_=3-p
+        d1,d2=random.randint(1,6),random.randint(1,6)
+        st["dice"]=[d1,d2]
+        st["moves_left"]=[d1,d2,d1,d2] if d1==d2 else [d1,d2]
+        st["current"]=np_
+        if not _bg_valid(st):
+            d1,d2=random.randint(1,6),random.randint(1,6)
+            st["dice"]=[d1,d2]
+            st["moves_left"]=[d1,d2,d1,d2] if d1==d2 else [d1,d2]
+            st["current"]=p
+    return st
+
+# ── Нарды: API ────────────────────────────────────────────────────────────────
+
+async def _wa_bg_lobby(request):
+    try: uid=int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            cur=await db.execute("SELECT game_id,player1_id,bet,created_at FROM backgammon_games WHERE status='waiting' ORDER BY game_id DESC LIMIT 20")
+            waiting=await cur.fetchall()
+            cur2=await db.execute("SELECT game_id,player1_id,player2_id,bet,status FROM backgammon_games WHERE (player1_id=? OR player2_id=?) AND status IN ('waiting','active')",(uid,uid))
+            mine=await cur2.fetchone()
+        games=[{"game_id":r[0],"player1_id":r[1],"bet":r[2],"created_at":r[3]} for r in waiting]
+        return _json({"lobby":games,"my_game":{"game_id":mine[0],"status":mine[3]} if mine else None})
+    except Exception as e:
+        return _json({"error":"db_error","detail":str(e)},500)
+
+async def _wa_bg_create(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        body=await request.json(); bet=max(0,int(body.get("bet",0)))
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        if bet>0 and (row[0] or 0)<bet: return _json({"error":"insufficient"},400)
+        cur2=await db.execute("SELECT game_id FROM backgammon_games WHERE player1_id=? AND status IN ('waiting','active')",(uid,))
+        if await cur2.fetchone(): return _json({"error":"already_in_game"},400)
+        if bet>0:
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(bet,uid))
+        cur3=await db.execute("INSERT INTO backgammon_games (player1_id,bet,status,created_at) VALUES (?,?,?,?)",
+                              (uid,bet,'waiting',now_msk().isoformat()))
+        gid=cur3.lastrowid
+        await db.commit()
+    return _json({"success":True,"game_id":gid})
+
+async def _wa_bg_join(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        gid=int(request.match_info["game_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT player1_id,player2_id,bet,status FROM backgammon_games WHERE game_id=?",(gid,))
+        g=await cur.fetchone()
+        if not g: return _json({"error":"not found"},404)
+        p1,p2,bet,status=g
+        if status!='waiting': return _json({"error":"game_started"},400)
+        if p1==uid: return _json({"error":"same_player"},400)
+        if bet>0:
+            cur2=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+            row=await cur2.fetchone()
+            if not row or (row[0] or 0)<bet: return _json({"error":"insufficient"},400)
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(bet,uid))
+        state=_bg_new_state()
+        await db.execute("UPDATE backgammon_games SET player2_id=?,status='active',state_json=? WHERE game_id=?",
+                         (uid,_json_mod.dumps(state),gid))
+        await db.commit()
+    return _json({"success":True,"game_id":gid})
+
+async def _wa_bg_state(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        gid=int(request.match_info["game_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT player1_id,player2_id,bet,status,state_json,winner_id FROM backgammon_games WHERE game_id=?",(gid,))
+        g=await cur.fetchone()
+        if not g: return _json({"error":"not found"},404)
+        p1,p2,bet,status,sj,winner_id=g
+        cur2=await db.execute("SELECT name FROM users WHERE user_id=?",(p1,))
+        n1r=await cur2.fetchone(); n1=n1r[0] if n1r else "Игрок 1"
+        n2="Ожидание..."
+        if p2:
+            cur3=await db.execute("SELECT name FROM users WHERE user_id=?",(p2,))
+            n2r=await cur3.fetchone(); n2=n2r[0] if n2r else "Игрок 2"
+    my_player=1 if uid==p1 else (2 if uid==p2 else 0)
+    state=_json_mod.loads(sj) if sj else None
+    valid=[]
+    if state and status=='active' and state.get("current")==my_player:
+        valid=_bg_valid(state)
+    return _json({"game_id":gid,"player1_id":p1,"player2_id":p2,"player1_name":n1,"player2_name":n2,
+                  "bet":bet,"status":status,"winner_id":winner_id,"my_player":my_player,
+                  "state":state,"valid_moves":valid})
+
+async def _wa_bg_move(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        gid=int(request.match_info["game_id"])
+        body=await request.json()
+        frm=int(body.get("from_pt",-1)); die=int(body.get("die",0))
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT player1_id,player2_id,bet,status,state_json FROM backgammon_games WHERE game_id=?",(gid,))
+        g=await cur.fetchone()
+        if not g: return _json({"error":"not found"},404)
+        p1,p2,bet,status,sj=g
+        if status!='active': return _json({"error":"not_active"},400)
+        my_player=1 if uid==p1 else (2 if uid==p2 else 0)
+        if not my_player: return _json({"error":"not_player"},403)
+        state=_json_mod.loads(sj)
+        if state.get("current")!=my_player: return _json({"error":"not_your_turn"},400)
+        new_state=_bg_move(state,frm,die)
+        if new_state is None: return _json({"error":"invalid_move"},400)
+        winner=new_state.get("winner")
+        if winner:
+            winner_id=p1 if winner==1 else p2
+            loser_id=p2 if winner==1 else p1
+            prize=bet*2
+            if prize>0:
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(prize,winner_id))
+            await db.execute("UPDATE backgammon_games SET state_json=?,status='finished',winner_id=? WHERE game_id=?",
+                             (_json_mod.dumps(new_state),winner_id,gid))
+        else:
+            await db.execute("UPDATE backgammon_games SET state_json=? WHERE game_id=?",
+                             (_json_mod.dumps(new_state),gid))
+        await db.commit()
+    valid=[] if winner else _bg_valid(new_state)
+    return _json({"success":True,"state":new_state,"valid_moves":valid,
+                  "winner":winner,"winner_id":winner_id if winner else None})
+
+async def _wa_bg_resign(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        gid=int(request.match_info["game_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT player1_id,player2_id,bet,status FROM backgammon_games WHERE game_id=?",(gid,))
+        g=await cur.fetchone()
+        if not g: return _json({"error":"not found"},404)
+        p1,p2,bet,status=g
+        if status=='waiting':
+            if bet>0: await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(bet,uid))
+            await db.execute("DELETE FROM backgammon_games WHERE game_id=?",(gid,))
+        elif status=='active':
+            winner_id=p2 if uid==p1 else p1
+            if winner_id and bet>0:
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(bet*2,winner_id))
+            await db.execute("UPDATE backgammon_games SET status='finished',winner_id=? WHERE game_id=?",(winner_id,gid))
+        await db.commit()
+    return _json({"success":True})
+
+# ── Бизнес: операции ──────────────────────────────────────────────────────────
+
+async def _wa_biz_types(request):
+    result=[{"type":k,"emoji":v["emoji"],"label":v["label"],"cost":v["cost"],
+             "min_emp":v["min_emp"],"base_out":v["base_out"],"upg_cost":v["upg_cost"]}
+            for k,v in BIZ_TYPES.items()]
+    return _json(result)
+
+async def _wa_biz_create(request):
+    try:
+        uid=int(request.match_info["user_id"])
+        body=await request.json(); btype=body.get("biz_type",""); name=str(body.get("name","")).strip()[:32]
+    except: return _json({"error":"invalid"},400)
+    if btype not in BIZ_TYPES or not name: return _json({"error":"invalid"},400)
+    cfg=BIZ_TYPES[btype]; cost=cfg["cost"]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        row=await cur.fetchone()
+        if not row or (row[0] or 0)<cost: return _json({"error":"insufficient","need":cost},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(cost,uid))
+        await db.execute("INSERT INTO businesses (owner_id,biz_type,name,level,created_at) VALUES (?,?,?,1,?)",
+                         (uid,btype,name,now_msk().isoformat()))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_biz_produce(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT biz_type,level,employees,materials,mat_qual,goods,last_prod FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        btype,level,emp,mat,qual,goods,last_prod=row
+        cfg=BIZ_TYPES.get(btype,{}); mn=cfg.get("min_emp",1); ph=cfg.get("prod_h",4)
+        if emp<mn: return _json({"error":"need_employees","min":mn},400)
+        if mat<cfg.get("mat_cycle",1): return _json({"error":"need_materials"},400)
+        now=now_msk()
+        if last_prod:
+            try:
+                lt=datetime.fromisoformat(last_prod)
+                if lt.tzinfo is None: lt=MSK.localize(lt)
+                if (now-lt).total_seconds()<ph*3600:
+                    cd=int(ph*3600-(now-lt).total_seconds())
+                    return _json({"error":"cooldown","cooldown_remaining":cd},429)
+            except: pass
+        eff=MATERIAL_QUALITY.get(qual,{}).get("eff",1.0)
+        mult=BIZ_LEVEL_MULT.get(level,1.0)
+        gain=int(cfg.get("base_out",10)*eff*mult)
+        tax=int(gain*cfg.get("tax",0.1)); net=gain-tax
+        salary=cfg.get("salary",0)*emp; paid=min(net,salary); net=max(0,net-paid)
+        new_mat=max(0,mat-cfg.get("mat_cycle",1))
+        await db.execute("UPDATE businesses SET goods=goods+?,materials=?,last_prod=? WHERE biz_id=?",(net,new_mat,now.isoformat(),bid))
+        await db.commit()
+    return _json({"success":True,"produced":net,"tax":tax,"salary":paid,"goods":goods+net,"cd_sec":ph*3600})
+
+async def _wa_biz_buy_materials(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+        body=await request.json(); qual=body.get("qual","low"); qty=max(1,int(body.get("qty",1)))
+    except: return _json({"error":"invalid"},400)
+    if qual not in MATERIAL_QUALITY: return _json({"error":"invalid qual"},400)
+    price=MATERIAL_QUALITY[qual]["price"]*qty
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        row=await cur.fetchone()
+        if not row or (row[0] or 0)<price: return _json({"error":"insufficient","need":price},400)
+        cur2=await db.execute("SELECT biz_id FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        if not await cur2.fetchone(): return _json({"error":"not found"},404)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(price,uid))
+        await db.execute("UPDATE businesses SET materials=materials+?,mat_qual=? WHERE biz_id=?",(qty,qual,bid))
+        await db.commit()
+    return _json({"success":True,"spent":price,"qty":qty})
+
+async def _wa_biz_hire(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+        body=await request.json(); cnt=max(1,int(body.get("count",1)))
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT biz_type,employees FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        btype,emp=row; cost=BIZ_TYPES.get(btype,{}).get("salary",3)*cnt*2
+        cur2=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        sz=await cur2.fetchone()
+        if not sz or (sz[0] or 0)<cost: return _json({"error":"insufficient","need":cost},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(cost,uid))
+        await db.execute("UPDATE businesses SET employees=employees+? WHERE biz_id=?",(cnt,bid))
+        await db.commit()
+    return _json({"success":True,"hired":cnt,"employees":emp+cnt,"spent":cost})
+
+async def _wa_biz_fire(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT employees FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        if not row[0]: return _json({"error":"no employees"},400)
+        await db.execute("UPDATE businesses SET employees=employees-1 WHERE biz_id=?",(bid,))
+        await db.commit()
+    return _json({"success":True,"employees":row[0]-1})
+
+async def _wa_biz_sell(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT goods FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        goods=row[0] or 0
+        if not goods: return _json({"error":"no goods"},400)
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(goods,uid))
+        await db.execute("UPDATE businesses SET goods=0 WHERE biz_id=?",(bid,))
+        await db.commit()
+    return _json({"success":True,"sold":goods})
+
+async def _wa_biz_upgrade(request):
+    try:
+        uid=int(request.match_info["user_id"]); bid=int(request.match_info["biz_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT biz_type,level FROM businesses WHERE biz_id=? AND owner_id=?",(bid,uid))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        btype,level=row
+        if level>=5: return _json({"error":"max_level"},400)
+        cost=BIZ_TYPES.get(btype,{}).get("upg_cost",100)*level
+        cur2=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        sz=await cur2.fetchone()
+        if not sz or (sz[0] or 0)<cost: return _json({"error":"insufficient","need":cost},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(cost,uid))
+        await db.execute("UPDATE businesses SET level=level+1 WHERE biz_id=?",(bid,))
+        await db.commit()
+    return _json({"success":True,"new_level":level+1,"spent":cost})
+
+# ── Клан: казна ───────────────────────────────────────────────────────────────
+
+async def _wa_clan_contribute(request):
+    try:
+        uid=int(request.match_info["user_id"]); body=await request.json(); amt=max(1,int(body.get("amount",0)))
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT clan_id FROM clan_members WHERE user_id=?",(uid,))
+        m=await cur.fetchone()
+        if not m: return _json({"error":"no clan"},400)
+        cid=m[0]
+        cur2=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        sz=await cur2.fetchone()
+        if not sz or (sz[0] or 0)<amt: return _json({"error":"insufficient"},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(amt,uid))
+        await db.execute("UPDATE clans SET treasury=COALESCE(treasury,0)+? WHERE clan_id=?",(amt,cid))
+        await db.commit()
+        cur3=await db.execute("SELECT treasury FROM clans WHERE clan_id=?",(cid,))
+        tr=await cur3.fetchone()
+    return _json({"success":True,"treasury":tr[0] if tr else 0})
+
+async def _wa_clan_withdraw(request):
+    try:
+        uid=int(request.match_info["user_id"]); body=await request.json(); amt=max(1,int(body.get("amount",0)))
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT clan_id FROM clan_members WHERE user_id=?",(uid,))
+        m=await cur.fetchone()
+        if not m: return _json({"error":"no clan"},400)
+        cid=m[0]
+        cur2=await db.execute("SELECT owner_id,treasury FROM clans WHERE clan_id=?",(cid,))
+        cl=await cur2.fetchone()
+        if not cl: return _json({"error":"clan error"},400)
+        if cl[0]!=uid: return _json({"error":"not owner"},403)
+        tr=cl[1] or 0
+        if tr<amt: return _json({"error":"insufficient","treasury":tr},400)
+        await db.execute("UPDATE clans SET treasury=treasury-? WHERE clan_id=?",(amt,cid))
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(amt,uid))
+        await db.commit()
+    return _json({"success":True,"treasury":tr-amt})
+
+# ── Акции: покупка/продажа ────────────────────────────────────────────────────
+
+async def _wa_stock_buy(request):
+    try:
+        uid=int(request.match_info["user_id"]); body=await request.json()
+        ticker=str(body.get("ticker","")).upper(); qty=float(body.get("qty",1))
+    except: return _json({"error":"invalid"},400)
+    if ticker not in STOCKS or qty<=0: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 1",(ticker,))
+        r=await cur.fetchone()
+        if not r or r[0]<=0: return _json({"error":"no price"},400)
+        price=r[0]; cost=round(price*qty,2); cost_int=max(1,int(cost))
+        cur2=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
+        sz=await cur2.fetchone()
+        if not sz or (sz[0] or 0)<cost_int: return _json({"error":"insufficient","need":cost_int},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(cost_int,uid))
+        await db.execute("INSERT INTO portfolios (user_id,ticker,shares) VALUES (?,?,?) ON CONFLICT(user_id,ticker) DO UPDATE SET shares=shares+?",(uid,ticker,qty,qty))
+        await db.commit()
+    return _json({"success":True,"ticker":ticker,"qty":qty,"cost":cost_int})
+
+async def _wa_stock_sell(request):
+    try:
+        uid=int(request.match_info["user_id"]); body=await request.json()
+        ticker=str(body.get("ticker","")).upper(); qty=float(body.get("qty",0))
+    except: return _json({"error":"invalid"},400)
+    if ticker not in STOCKS or qty<=0: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT shares FROM portfolios WHERE user_id=? AND ticker=?",(uid,ticker))
+        r=await cur.fetchone()
+        if not r or (r[0] or 0)<qty: return _json({"error":"insufficient_shares"},400)
+        cur2=await db.execute("SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 1",(ticker,))
+        pr=await cur2.fetchone()
+        if not pr or pr[0]<=0: return _json({"error":"no price"},400)
+        gross=round(pr[0]*qty,2); commission=int(gross*0.05); earned=max(0,int(gross)-commission)
+        new_shares=round(r[0]-qty,6)
+        if new_shares<=0:
+            await db.execute("DELETE FROM portfolios WHERE user_id=? AND ticker=?",(uid,ticker))
+        else:
+            await db.execute("UPDATE portfolios SET shares=? WHERE user_id=? AND ticker=?",(new_shares,uid,ticker))
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(earned,uid))
+        await db.commit()
+    return _json({"success":True,"ticker":ticker,"qty":qty,"earned":earned,"commission":commission})
+
+# ── Лутбокс ───────────────────────────────────────────────────────────────────
+
+_BOX_CD = 3600
+
+async def _wa_lootbox_info(request):
+    try: uid=int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT last_box FROM users WHERE user_id=?",(uid,))
+        row=await cur.fetchone()
+    if not row: return _json({"cooldown_remaining":0})
+    lb=row[0]
+    cd=0
+    if lb:
+        try:
+            lt=datetime.fromisoformat(lb)
+            if lt.tzinfo is None: lt=MSK.localize(lt)
+            cd=max(0,int(_BOX_CD-(now_msk()-lt).total_seconds()))
+        except: pass
+    return _json({"cooldown_remaining":cd})
+
+async def _wa_lootbox_open(request):
+    try: uid=int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    now=now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur=await db.execute("SELECT size,last_box,loan FROM users WHERE user_id=?",(uid,))
+        row=await cur.fetchone()
+        if not row: return _json({"error":"not found"},404)
+        size,lb,loan=row; size=size or 0; loan=loan or 0
+        if lb:
+            try:
+                lt=datetime.fromisoformat(lb)
+                if lt.tzinfo is None: lt=MSK.localize(lt)
+                if (now-lt).total_seconds()<_BOX_CD:
+                    cd=int(_BOX_CD-(now-lt).total_seconds())
+                    return _json({"error":"cooldown","cooldown_remaining":cd},429)
+            except: pass
+        roll=random.randint(1,100)
+        if roll<=40: reward,rarity=random.randint(1,3),"💩 Мусор"
+        elif roll<=70: reward,rarity=random.randint(4,8),"🟢 Обычный"
+        elif roll<=90: reward,rarity=random.randint(9,15),"🔵 Редкий"
+        elif roll<=99: reward,rarity=random.randint(16,30),"🟣 Эпик"
+        else: reward,rarity=random.randint(50,100),"🟡 Легендарный"
+        repaid=0
+        if loan>0:
+            repaid=min(loan,reward); new_loan=loan-repaid
+            if new_loan>0:
+                await db.execute("UPDATE users SET loan=? WHERE user_id=?",(new_loan,uid))
+            else:
+                await db.execute("UPDATE users SET loan=0,loan_date=NULL WHERE user_id=?",(uid,))
+        new_size=size+reward-repaid
+        await db.execute("UPDATE users SET size=?,last_box=? WHERE user_id=?",(new_size,now.isoformat(),uid))
+        await db.commit()
+    return _json({"success":True,"reward":reward,"rarity":rarity,"repaid":repaid,
+                  "new_size":new_size,"cooldown_remaining":_BOX_CD})
+
+
 async def _run_webapp_safe():
     """Запускает веб-сервер в фоне. Любые ошибки логируются, бот продолжает работать."""
     try:
@@ -4101,8 +4315,28 @@ async def start_webapp():
     app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
     app.router.add_get("/api/bank", _wa_bank)
     app.router.add_post("/api/slots/{user_id}", _wa_slots)
+    app.router.add_get("/api/business/types", _wa_biz_types)
     app.router.add_get("/api/business/{user_id}", _wa_business)
+    app.router.add_post("/api/business/{user_id}/create", _wa_biz_create)
     app.router.add_get("/api/clan/{user_id}", _wa_clan)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/produce", _wa_biz_produce)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/buy-materials", _wa_biz_buy_materials)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/hire", _wa_biz_hire)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/fire", _wa_biz_fire)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/sell", _wa_biz_sell)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/upgrade", _wa_biz_upgrade)
+    app.router.add_post("/api/clan/{user_id}/contribute", _wa_clan_contribute)
+    app.router.add_post("/api/clan/{user_id}/withdraw", _wa_clan_withdraw)
+    app.router.add_post("/api/stocks/buy/{user_id}", _wa_stock_buy)
+    app.router.add_post("/api/stocks/sell/{user_id}", _wa_stock_sell)
+    app.router.add_get("/api/lootbox/{user_id}", _wa_lootbox_info)
+    app.router.add_post("/api/lootbox/{user_id}", _wa_lootbox_open)
+    app.router.add_get("/api/backgammon/lobby/{user_id}", _wa_bg_lobby)
+    app.router.add_post("/api/backgammon/create/{user_id}", _wa_bg_create)
+    app.router.add_post("/api/backgammon/join/{user_id}/{game_id}", _wa_bg_join)
+    app.router.add_get("/api/backgammon/state/{game_id}/{user_id}", _wa_bg_state)
+    app.router.add_post("/api/backgammon/move/{game_id}/{user_id}", _wa_bg_move)
+    app.router.add_post("/api/backgammon/resign/{game_id}/{user_id}", _wa_bg_resign)
     app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
     runner = aio_web.AppRunner(app)
     await runner.setup()
@@ -4116,11 +4350,9 @@ async def start_webapp():
 async def main():
     global BOT_USERNAME
     await init_db()
-    await load_volatile_prices()
     await set_commands(bot)
     bot_info = await bot.get_me()
     BOT_USERNAME = bot_info.username
-    asyncio.create_task(update_volatile_prices())
     asyncio.create_task(luxury_tax_loop())
     asyncio.create_task(update_real_stock_prices_loop())
     asyncio.create_task(_run_webapp_safe())
