@@ -142,27 +142,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .hold-sh{font-size:11px;color:var(--muted);margin-top:2px}
 .hold-val{font-size:14px;font-weight:700;color:var(--green)}
 
-/* ── BUSINESS ── */
-.biz-card{background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:8px}
-.biz-top{display:flex;gap:12px;align-items:flex-start}
+.biz-card{background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start}
 .biz-em{font-size:32px;line-height:1;flex-shrink:0}
-.biz-info{flex:1;min-width:0}
+.biz-info{flex:1}
 .biz-name{font-size:14px;font-weight:700}
 .biz-type{font-size:12px;color:var(--muted);margin-top:1px}
-.biz-stats{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-.biz-stat{background:var(--bg2);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--muted)}
+.biz-stats{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap}
+.biz-stat{background:var(--bg2);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted)}
 .biz-stat span{color:var(--text);font-weight:600}
 .lv-badge{background:var(--gdim);border:1px solid var(--green);color:var(--green);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;flex-shrink:0}
-.biz-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
-.act-btn{padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
-.act-btn:active{background:var(--gdim);border-color:var(--green);color:var(--green)}
-.act-btn.red:active{background:var(--rdim);border-color:var(--red);color:var(--red)}
-.act-btn:disabled{opacity:.4;cursor:not-allowed}
-.biz-ready{font-size:11px;color:var(--green);margin-top:4px}
-.biz-notready{font-size:11px;color:var(--muted);margin-top:4px}
 
-/* ── CLAN ── */
-.clan-hdr{background:linear-gradient(135deg,#1a1a3a,var(--bg3));border:1px solid var(--blue);border-radius:var(--r);padding:16px;margin-bottom:10px;text-align:center}
+.clan-hdr{background:linear-gradient(135deg,#1a1a3a,var(--bg3));border:1px solid var(--blue);border-radius:var(--r);padding:16px;margin-bottom:12px;text-align:center}
 .clan-name{font-size:22px;font-weight:800;color:var(--blue)}
 .clan-role{font-size:13px;color:var(--muted);margin-top:4px}
 .clan-treasury{font-size:14px;color:var(--gold);margin-top:4px;font-weight:600}
@@ -180,49 +170,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .bi{background:var(--bg3);border-radius:10px;padding:14px;text-align:center}
 .bv{font-size:19px;font-weight:800;word-break:break-all}
 .bl{font-size:11px;color:var(--muted);margin-top:3px}
-
-.loan-panel{border-radius:var(--r);padding:12px 14px;margin-bottom:8px;font-size:13px}
-.loan-active{background:var(--rdim);border:1px solid var(--red);color:var(--red)}
-.loan-none{background:var(--bg3);border:1px solid var(--border);color:var(--muted)}
-.loan-amount{font-size:20px;font-weight:800;margin-top:4px}
-
-.dep-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
-.dep-item:last-child{border-bottom:none}
-.dep-amount{font-size:13px;font-weight:700;color:var(--green)}
-.dep-meta{font-size:11px;color:var(--muted);margin-top:2px}
-.claim-btn{padding:6px 13px;border:1px solid var(--green);border-radius:8px;background:var(--gdim);color:var(--green);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
-.claim-btn:disabled{border-color:var(--border);background:var(--bg3);color:var(--muted);cursor:not-allowed}
-
-/* ── ACTION ROWS ── */
-.action-row{display:flex;gap:8px;margin-top:8px}
-.action-btn{flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
-.action-btn.green{border-color:var(--green);background:var(--gdim);color:var(--green)}
-.action-btn.red{border-color:var(--red);background:var(--rdim);color:var(--red)}
-.action-btn:active{opacity:.75}
-
-/* ── MODAL ── */
-.modal-ov{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center}
-.modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;padding:20px 16px 36px;max-height:84vh;overflow-y:auto}
-.modal-title{font-size:17px;font-weight:700;margin-bottom:14px;text-align:center}
-.modal-row{display:flex;gap:8px;margin-top:14px}
-.modal-cancel{flex:1;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
-.modal-ok{flex:2;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#238636,#3fb950);color:#fff;font-size:14px;font-weight:700;cursor:pointer}
-.modal-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text);font-size:14px;margin-top:6px;outline:none;-webkit-appearance:none}
-.modal-input:focus{border-color:var(--green)}
-.modal-label{font-size:12px;color:var(--muted);margin-top:12px;display:block}
-.modal-hint{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px}
-
-.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
-.type-btn{padding:10px 6px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;text-align:center;line-height:1.6;transition:all .15s}
-.type-btn.sel{border-color:var(--green);background:var(--gdim);color:var(--green)}
-
-.qual-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px}
-.qual-btn{padding:9px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);font-size:12px;cursor:pointer;text-align:center;color:var(--text);line-height:1.6;transition:all .15s}
-.qual-btn.sel{border-color:var(--green);background:var(--gdim);color:var(--green)}
-
-.dep-days-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px}
-.dep-day-btn{padding:10px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);font-size:12px;cursor:pointer;text-align:center;color:var(--text);line-height:1.7;transition:all .15s}
-.dep-day-btn.sel{border-color:var(--green);background:var(--gdim);color:var(--green)}
 
 /* ══════════════════ FORBES ════════════════════ */
 .forbes-hdr{background:linear-gradient(135deg,#2a1f00,var(--bg3));border:1px solid var(--gold);border-radius:var(--r);padding:16px;margin-bottom:12px;text-align:center}
@@ -243,7 +190,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 @keyframes sp{to{transform:rotate(360deg)}}
 .no-data{text-align:center;color:var(--muted);padding:28px;font-size:13px}
 
-.gain-pop{position:fixed;top:28%;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--green);color:#fff;padding:9px 22px;border-radius:50px;font-size:16px;font-weight:800;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:nowrap;box-shadow:0 4px 20px rgba(63,185,80,.5);max-width:90vw;text-align:center}
+.gain-pop{position:fixed;top:28%;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--green);color:#fff;padding:9px 22px;border-radius:50px;font-size:19px;font-weight:800;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:nowrap;box-shadow:0 4px 20px rgba(63,185,80,.5)}
 .gain-pop.show{opacity:1;transform:translateX(-50%) translateY(-40px)}
 </style>
 </head>
@@ -346,38 +293,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <button class="mtb" onclick="moretab('clan')">🛡️ Клан</button>
       <button class="mtb" onclick="moretab('bank')">🏦 Банк</button>
     </div>
-
-    <!-- ПОРТФЕЛЬ -->
     <div id="more-port">
       <div class="port-hdr"><div class="port-tot" id="port-tot">— см</div><div class="port-lbl">Стоимость портфеля</div></div>
       <div class="card"><div class="sec">Активы</div><div id="port-list"><div class="spin-loader">Загрузка</div></div></div>
     </div>
-
-    <!-- БИЗНЕС -->
     <div id="more-biz" style="display:none">
-      <button class="action-btn green" style="width:100%;margin-bottom:10px" onclick="openBizCreateModal()">➕ Открыть предприятие</button>
-      <div class="card"><div class="sec">Мои предприятия</div><div id="biz-list"><div class="spin-loader">Загрузка</div></div></div>
+      <div class="card" style="margin-bottom:10px"><div class="sec">Мои предприятия</div><div id="biz-list"><div class="spin-loader">Загрузка</div></div></div>
     </div>
-
-    <!-- КЛАН -->
     <div id="more-clan" style="display:none">
       <div id="clan-content"><div class="spin-loader">Загрузка</div></div>
     </div>
-
-    <!-- БАНК -->
     <div id="more-bank" style="display:none">
-      <!-- Personal bank section (only if logged in) -->
-      <div id="bank-personal" style="display:none">
-        <div class="card">
-          <div class="sec">Мой кредит</div>
-          <div id="user-loan-section"><div class="spin-loader">Загрузка</div></div>
-        </div>
-        <div class="card">
-          <div class="sec">Мои вклады</div>
-          <div id="user-deposits-section"><div class="spin-loader">Загрузка</div></div>
-        </div>
-      </div>
-      <!-- Global bank stats -->
       <div class="card">
         <div class="sec">Состояние банка</div>
         <div class="bank-grid">
@@ -413,31 +339,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 <div class="gain-pop" id="gain-pop"></div>
 
-<!-- MODAL OVERLAY -->
-<div id="modal-ov" class="modal-ov" style="display:none" onclick="if(event.target===this)closeModal()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-title" id="modal-title"></div>
-    <div id="modal-body"></div>
-    <div class="modal-row">
-      <button class="modal-cancel" onclick="closeModal()">Отмена</button>
-      <button class="modal-ok" id="modal-ok">Подтвердить</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
-// ── STATE ──────────────────────────────────────────────────
+// ── STATE ─────────────────────────────────────────────────
 let userId = null, userData = null, cooldownLeft = 0, timerIv = null;
 let priceChart = null, allPrices = [], curTicker = null, mktSub = 'stocks';
 let slotBet = 10, slotSpinning = false, slotSize = null;
 let currentMoreTab = 'port';
-let portLoaded = false, bankLoaded = false;
-let bizTypes = null, selectedBizType = null;
-let selectedQuality = 'low', selectedDepDays = 1;
-let userBankData = null;
+let portLoaded = false, bizLoaded = false, clanLoaded = false, bankLoaded = false;
 
 // ── INIT ──────────────────────────────────────────────────
 window.addEventListener('load', () => {
@@ -451,12 +362,13 @@ window.addEventListener('load', () => {
     document.getElementById('hdr-user').textContent = userId ? 'Тест #' + userId : 'Гость';
   }
 
+  // Public data — always load
   loadPrices();
   loadBank();
 
+  // User data
   if (userId) {
     loadUserData();
-    document.getElementById('bank-personal').style.display = '';
   } else {
     document.getElementById('grow-btn').textContent = 'Открой через Telegram';
   }
@@ -488,13 +400,11 @@ function moretab(name) {
 }
 
 function loadMoreTab(name) {
+  if (!userId) return;
   if (name === 'port' && !portLoaded) loadPortfolio();
-  if (name === 'biz') loadBusiness();
-  if (name === 'clan') loadClan();
-  if (name === 'bank') {
-    if (!bankLoaded) loadBank();
-    if (userId) loadUserBank();
-  }
+  if (name === 'biz' && !bizLoaded) loadBusiness();
+  if (name === 'clan' && !clanLoaded) loadClan();
+  if (name === 'bank' && !bankLoaded) loadBank();
 }
 
 // ── MARKET SUB-TABS ───────────────────────────────────────
@@ -530,8 +440,6 @@ function renderUserData() {
   if (userData.loan > 0) {
     document.getElementById('loan-box').style.display = '';
     document.getElementById('loan-amt').textContent = userData.loan;
-  } else {
-    document.getElementById('loan-box').style.display = 'none';
   }
   cooldownLeft = userData.cooldown_remaining;
   updateGrowBtn();
@@ -560,7 +468,7 @@ function updateGrowBtn() {
     if (timerIv) { clearInterval(timerIv); timerIv = null; }
   } else {
     btn.disabled = true; bar.style.display = '';
-    fill.style.width = Math.max(0, (86400 - cooldownLeft) / 86400 * 100) + '%';
+    fill.style.width = Math.max(0, (3600 - cooldownLeft) / 3600 * 100) + '%';
     const h = Math.floor(cooldownLeft / 3600), m = Math.floor(cooldownLeft % 3600 / 60), s = cooldownLeft % 60;
     const ts = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
     btn.textContent = `⏰ ${ts}`;
@@ -581,7 +489,7 @@ document.getElementById('grow-btn').addEventListener('click', async () => {
     const r = await fetch(`/api/grow/${userId}`, { method: 'POST' });
     const d = await r.json();
     if (d.success) {
-      showToast('+' + d.gain + ' см' + (d.repaid > 0 ? ` (долг -${d.repaid})` : ''), false);
+      showGainPop(d.gain, d.repaid);
       btn.classList.add('pulse'); setTimeout(() => btn.classList.remove('pulse'), 400);
       if (userData) userData.size = d.new_size;
       animNum('cuke-sz', d.new_size, ' см');
@@ -597,6 +505,12 @@ document.getElementById('grow-btn').addEventListener('click', async () => {
     }
   } catch(e) { btn.disabled = false; btn.textContent = '🌱 Вырастить огурец!'; }
 });
+
+function showGainPop(gain, repaid) {
+  const p = document.getElementById('gain-pop');
+  p.textContent = `+${gain} см` + (repaid > 0 ? ` (долг -${repaid})` : '');
+  p.classList.add('show'); setTimeout(() => p.classList.remove('show'), 1800);
+}
 
 // ── PRICES ────────────────────────────────────────────────
 async function loadPrices() {
@@ -703,7 +617,7 @@ function setBet(val, btn) {
 
 async function spinSlots() {
   if (slotSpinning) return;
-  if (!userId) { showToast('Открой через Telegram!', true); return; }
+  if (!userId) { alert('Открой через Telegram!'); return; }
   if (slotSize !== null && slotSize < slotBet) {
     setSlotResult('❌ Недостаточно см!', 'lose'); return;
   }
@@ -720,6 +634,7 @@ async function spinSlots() {
   }, 75));
   reels.forEach(r => r.classList.add('spinning'));
 
+  // Fetch result
   let data;
   try {
     const r = await fetch(`/api/slots/${userId}`, {
@@ -741,6 +656,7 @@ async function spinSlots() {
     setSlotResult(data.error === 'insufficient' ? '❌ Мало см!' : '❌ ' + data.error, 'lose'); return;
   }
 
+  // Stop reels one by one
   function stopReel(i, sym, delay) {
     setTimeout(() => {
       flags[i] = false; clearInterval(ivs[i]);
@@ -804,229 +720,53 @@ async function loadPortfolio() {
 
 // ── BUSINESS ─────────────────────────────────────────────
 async function loadBusiness() {
-  if (!userId) { document.getElementById('biz-list').innerHTML = '<div class="no-data">Войди через Telegram</div>'; return; }
+  bizLoaded = true;
+  if (!userId) return;
   document.getElementById('biz-list').innerHTML = '<div class="spin-loader">Загрузка</div>';
   try {
     const r = await fetch(`/api/business/${userId}`);
     const d = await r.json();
     if (!d.length) {
-      document.getElementById('biz-list').innerHTML = '<div class="no-data">Нет предприятий<br><small style="color:var(--muted)">Нажми ➕ выше чтобы открыть</small></div>'; return;
+      document.getElementById('biz-list').innerHTML = '<div class="no-data">Нет предприятий<br><small>Купи бизнес через /бизнес в боте</small></div>'; return;
     }
-    document.getElementById('biz-list').innerHTML = d.map(b => {
-      const cdText = b.cd_sec > 0 ? `⏰ ${fmtDur(b.cd_sec)}` : '';
-      const canProd = b.can_produce;
-      const statusText = canProd
-        ? `✅ Готово к производству (+${fmt(b.goods_gain)} ед.)`
-        : b.ready
-          ? cdText
-          : `⚠️ Нужно: ${b.min_emp} сотр., ${b.mat_cycle} сырья`;
-      return `<div class="biz-card">
-        <div class="biz-top">
-          <div class="biz-em">${b.emoji}</div>
-          <div class="biz-info">
-            <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
-              <div class="biz-name">${esc(b.name)}</div>
-              <div class="lv-badge">Ур. ${b.level}</div>
-            </div>
-            <div class="biz-type">${b.label} · ${b.tax_pct}% налог</div>
-            <div class="biz-stats">
-              <div class="biz-stat">👷 <span>${b.employees}/${b.max_emp}</span></div>
-              <div class="biz-stat">🧱 <span>${b.materials}</span></div>
-              <div class="biz-stat">📦 <span>${b.goods}</span></div>
-              <div class="biz-stat">${b.mat_label}</div>
-            </div>
-            <div class="${canProd ? 'biz-ready' : 'biz-notready'}">${statusText}</div>
+    const matLabel = { low: '🟤 Эконом', medium: '🔵 Стандарт', high: '💎 Премиум' };
+    document.getElementById('biz-list').innerHTML = d.map(b => `
+      <div class="biz-card">
+        <div class="biz-em">${b.emoji}</div>
+        <div class="biz-info">
+          <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+            <div class="biz-name">${esc(b.name)}</div>
+            <div class="lv-badge">Ур. ${b.level}</div>
+          </div>
+          <div class="biz-type">${b.label}</div>
+          <div class="biz-stats">
+            <div class="biz-stat">👷 <span>${b.employees}</span></div>
+            <div class="biz-stat">🧱 <span>${b.materials}</span></div>
+            <div class="biz-stat">📦 <span>${b.goods}</span></div>
+            <div class="biz-stat">${matLabel[b.mat_qual] || b.mat_qual}</div>
           </div>
         </div>
-        <div class="biz-actions">
-          <button class="act-btn" ${canProd?'':'disabled'} onclick="bizProduce(${b.biz_id})">⚙️ Произвести</button>
-          <button class="act-btn" onclick="openBizMatModal(${b.biz_id})">📦 Сырьё</button>
-          <button class="act-btn" onclick="openBizHireModal(${b.biz_id}, ${b.max_emp - b.employees})">👷 Нанять</button>
-          <button class="act-btn red" onclick="bizFire(${b.biz_id})" ${b.employees?'':'disabled'}>👋 Уволить</button>
-          <button class="act-btn" onclick="bizSell(${b.biz_id})" ${b.goods?'':'disabled'}>💰 Продать</button>
-          ${b.level < 5 ? `<button class="act-btn" onclick="bizUpgrade(${b.biz_id}, ${b.upg_cost})">⬆️ Улучшить</button>` : '<span class="act-btn" style="opacity:.4;cursor:default">🏆 Макс ур.</span>'}
-        </div>
-      </div>`;
-    }).join('');
+      </div>`).join('');
   } catch(e) { document.getElementById('biz-list').innerHTML = '<div class="no-data">Ошибка загрузки</div>'; }
-}
-
-async function openBizCreateModal() {
-  if (!userId) return;
-  if (!bizTypes) {
-    try {
-      const r = await fetch('/api/business/types');
-      bizTypes = await r.json();
-    } catch(e) { showToast('Ошибка загрузки типов', true); return; }
-  }
-  selectedBizType = null;
-  const typeGrid = bizTypes.map(t =>
-    `<button class="type-btn" id="tp-${t.type}" onclick="selBizType('${t.type}')">${t.emoji}<br><b>${t.label}</b><br><small style="color:var(--muted)">${fmtK(t.cost)} см</small></button>`
-  ).join('');
-  openModal('🏗️ Открыть предприятие',
-    `<div class="sec" style="margin-bottom:6px">Тип предприятия</div>
-     <div class="type-grid">${typeGrid}</div>
-     <div class="sec" style="margin-top:4px;margin-bottom:4px">Название</div>
-     <input id="biz-name-inp" class="modal-input" type="text" maxlength="40" placeholder="Моё предприятие">`,
-    'Открыть', createBusiness);
-}
-
-function selBizType(key) {
-  selectedBizType = key;
-  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('sel'));
-  document.getElementById('tp-' + key)?.classList.add('sel');
-}
-
-async function createBusiness() {
-  if (!selectedBizType) { showToast('Выбери тип предприятия', true); return; }
-  const name = (document.getElementById('biz-name-inp')?.value || '').trim();
-  if (name.length < 2) { showToast('Название от 2 символов', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/business/${userId}/create`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ biz_type: selectedBizType, name })
-    });
-    const d = await r.json();
-    if (d.success) { showToast('✅ Предприятие открыто!'); loadBusiness(); }
-    else {
-      const msgs = { insufficient: 'Недостаточно см', max_businesses: 'Максимум 3 предприятия', unknown_type: 'Неизвестный тип' };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка соединения', true); }
-}
-
-async function bizProduce(bizId) {
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/produce`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) {
-      showToast(`⚙️ +${fmt(d.goods_gain)} товаров · -${fmt(d.salary_paid)} см зарплата`);
-      loadBusiness();
-    } else {
-      const msgs = { not_enough_employees: `Нужно ${d.need} сотрудников`, not_enough_materials: `Нужно ${d.need} сырья`, cannot_pay_salary: `Не хватает ${fmt(d.need)} см на зарплату`, cooldown: `Кулдаун: ${fmtDur(d.cd_sec)}` };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-function openBizMatModal(bizId) {
-  selectedQuality = 'low';
-  openModal('📦 Купить сырьё',
-    `<div class="sec" style="margin-bottom:6px">Качество</div>
-     <div class="qual-grid">
-       <button class="qual-btn sel" id="ql-low" onclick="selQual('low')">🟤<br>Эконом<br><b>300 см</b></button>
-       <button class="qual-btn" id="ql-medium" onclick="selQual('medium')">🔵<br>Стандарт<br><b>900 см</b></button>
-       <button class="qual-btn" id="ql-high" onclick="selQual('high')">💎<br>Премиум<br><b>2000 см</b></button>
-     </div>
-     <div class="sec" style="margin-top:4px;margin-bottom:4px">Количество партий</div>
-     <input id="mat-qty-inp" class="modal-input" type="number" min="1" max="999" value="1">`,
-    'Купить', () => buyMaterials(bizId));
-}
-
-function selQual(q) {
-  selectedQuality = q;
-  ['low','medium','high'].forEach(k => document.getElementById('ql-' + k)?.classList.toggle('sel', k === q));
-}
-
-async function buyMaterials(bizId) {
-  const qty = parseInt(document.getElementById('mat-qty-inp')?.value) || 0;
-  if (qty < 1) { showToast('Минимум 1 партия', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/buy-materials`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ qual: selectedQuality, qty })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`📦 ${d.qty} сырья куплено за ${fmt(d.cost)} см`); loadBusiness(); }
-    else showToast('❌ ' + (d.error === 'insufficient' ? `Нужно ${fmt(d.need)} см` : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-function openBizHireModal(bizId, maxNew) {
-  openModal('👷 Нанять сотрудников',
-    `<div class="modal-hint">Стоимость найма: зарплата × 5 за человека. Максимум свободных мест: <b style="color:var(--text)">${maxNew}</b></div>
-     <div class="sec" style="margin-bottom:4px">Количество</div>
-     <input id="hire-cnt-inp" class="modal-input" type="number" min="1" max="${maxNew}" value="1">`,
-    'Нанять', () => bizHire(bizId));
-}
-
-async function bizHire(bizId) {
-  const count = parseInt(document.getElementById('hire-cnt-inp')?.value) || 0;
-  if (count < 1) { showToast('Минимум 1 сотрудник', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/hire`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ count })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`👷 Нанято ${d.hired} · -${fmt(d.cost)} см`); loadBusiness(); }
-    else {
-      const msgs = { exceeds_max: `Лимит ${d.max_emp} сотрудников`, insufficient: `Нужно ${fmt(d.need)} см` };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-async function bizFire(bizId) {
-  if (!confirm('Уволить всех сотрудников?')) return;
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/fire`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) { showToast(`👋 Уволено ${d.fired} сотрудников`); loadBusiness(); }
-    else showToast('❌ ' + (d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-async function bizSell(bizId) {
-  if (!confirm('Продать всю продукцию?')) return;
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/sell`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) { showToast(`💰 +${fmt(d.received)} см (налог ${fmt(d.tax)} см)`); loadBusiness(); }
-    else showToast('❌ ' + (d.error === 'no_goods' ? 'Нет товаров для продажи' : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-async function bizUpgrade(bizId, cost) {
-  if (!confirm(`Улучшить предприятие за ${fmt(cost)} см?`)) return;
-  try {
-    const r = await fetch(`/api/business/${userId}/${bizId}/upgrade`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) { showToast(`⬆️ Уровень ${d.level}! Коэфф. ×${d.mult}`); loadBusiness(); }
-    else {
-      const msgs = { max_level: 'Уже максимальный уровень', insufficient: `Нужно ${fmt(d.need)} см` };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка', true); }
 }
 
 // ── CLAN ─────────────────────────────────────────────────
 async function loadClan() {
-  if (!userId) { document.getElementById('clan-content').innerHTML = '<div class="no-data">Войди через Telegram</div>'; return; }
+  clanLoaded = true;
+  if (!userId) return;
   document.getElementById('clan-content').innerHTML = '<div class="spin-loader">Загрузка</div>';
   try {
     const r = await fetch(`/api/clan/${userId}`);
     const d = await r.json();
     if (!d.clan) {
-      document.getElementById('clan-content').innerHTML = '<div class="no-data">Ты не состоишь в клане<br><small style="color:var(--muted)">Вступи через 🛡 Клан в боте</small></div>'; return;
+      document.getElementById('clan-content').innerHTML = '<div class="no-data">Ты не состоишь в клане<br><small>Вступи через 🛡 Клан в боте</small></div>'; return;
     }
     const c = d.clan;
-    const isOwner = c.owner_id === userId;
     document.getElementById('clan-content').innerHTML = `
       <div class="clan-hdr">
         <div class="clan-name">🛡️ ${esc(c.name)}</div>
         <div class="clan-role">Роль: ${esc(c.my_role)}</div>
-        <div class="clan-treasury">🏦 Казна: ${fmt(c.treasury)} см</div>
-      </div>
-      <div class="card" style="margin-bottom:10px">
-        <div class="sec">Управление казной</div>
-        <div class="action-row">
-          <button class="action-btn green" onclick="openContributeModal()">💰 Пополнить</button>
-          ${isOwner ? `<button class="action-btn" onclick="openWithdrawModal(${c.treasury})">🏦 Вывести</button>` : ''}
-        </div>
+        <div class="clan-treasury">🏦 Казна: ${c.treasury} см</div>
       </div>
       <div class="card">
         <div class="sec">Участники (${d.members.length})</div>
@@ -1035,61 +775,12 @@ async function loadClan() {
           const medals = {0:'🥇',1:'🥈',2:'🥉'};
           return `<div class="mem-item">
             <div class="mem-rank">${medals[i] || (i+1)}</div>
-            <div style="flex:1"><div class="mem-name ${isMe?'mem-me':''}">${esc(m.name)}${isMe?' (ты)':''}</div><div class="mem-role">${esc(m.role)}</div></div>
-            <div class="mem-sz">${fmt(m.size)} см</div>
+            <div><div class="mem-name ${isMe?'mem-me':''}">${esc(m.name)}${isMe?' (ты)':''}</div><div class="mem-role">${esc(m.role)}</div></div>
+            <div class="mem-sz">${m.size} см</div>
           </div>`;
         }).join('')}
       </div>`;
   } catch(e) { document.getElementById('clan-content').innerHTML = '<div class="no-data">Ошибка загрузки</div>'; }
-}
-
-function openContributeModal() {
-  openModal('💰 Пополнить казну',
-    `<div class="modal-hint">Средства будут переведены из вашего баланса в общую казну клана.</div>
-     <div class="sec" style="margin-bottom:4px">Сумма (см)</div>
-     <input id="contrib-inp" class="modal-input" type="number" min="1" placeholder="Введи сумму...">`,
-    'Положить', contributeToTreasury);
-}
-
-async function contributeToTreasury() {
-  const amount = parseInt(document.getElementById('contrib-inp')?.value) || 0;
-  if (amount < 1) { showToast('Введи сумму', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/clan/${userId}/contribute`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ amount })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`💰 +${fmt(d.contributed)} см в казну`); loadClan(); }
-    else showToast('❌ ' + (d.error === 'insufficient' ? 'Недостаточно см' : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-function openWithdrawModal(treasury) {
-  openModal('🏦 Вывести из казны',
-    `<div class="modal-hint">Доступно в казне: <b style="color:var(--gold)">${fmt(treasury)} см</b>. Только лидер (владелец) клана может выводить средства.</div>
-     <div class="sec" style="margin-bottom:4px">Сумма (см)</div>
-     <input id="withdraw-inp" class="modal-input" type="number" min="1" max="${treasury}" placeholder="Введи сумму...">`,
-    'Вывести', withdrawFromTreasury);
-}
-
-async function withdrawFromTreasury() {
-  const amount = parseInt(document.getElementById('withdraw-inp')?.value) || 0;
-  if (amount < 1) { showToast('Введи сумму', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/clan/${userId}/withdraw`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ amount })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`🏦 +${fmt(d.withdrawn)} см снято из казны`); loadClan(); }
-    else {
-      const msgs = { not_owner: 'Только владелец клана может выводить', insufficient_treasury: 'Недостаточно средств в казне' };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка', true); }
 }
 
 // ── BANK ─────────────────────────────────────────────────
@@ -1108,155 +799,6 @@ async function loadBank() {
        <p>🏆 Богачей (≥5000 см): <b>${d.rich_count}</b> из <b>${d.users_count}</b> — платят налог на роскошь.</p><br>
        <p>💼 Активных депозитов: <b>${fmt(d.deposits_total)} см</b></p>`;
   } catch(e) { /* silent */ }
-}
-
-async function loadUserBank() {
-  if (!userId) return;
-  document.getElementById('user-loan-section').innerHTML = '<div class="spin-loader">Загрузка</div>';
-  document.getElementById('user-deposits-section').innerHTML = '<div class="spin-loader">Загрузка</div>';
-  try {
-    const r = await fetch(`/api/bank/${userId}`);
-    userBankData = await r.json();
-    renderUserLoan();
-    renderUserDeposits();
-  } catch(e) {
-    document.getElementById('user-loan-section').innerHTML = '<div class="no-data">Ошибка загрузки</div>';
-    document.getElementById('user-deposits-section').innerHTML = '<div class="no-data">Ошибка загрузки</div>';
-  }
-}
-
-function renderUserLoan() {
-  const el = document.getElementById('user-loan-section');
-  const loan = userBankData?.loan || 0;
-  const maxLoan = userBankData?.max_loan || 100000;
-  if (loan > 0) {
-    el.innerHTML = `
-      <div class="loan-panel loan-active">
-        <div>⚠️ Активный долг</div>
-        <div class="loan-amount">${fmt(loan)} см</div>
-      </div>
-      <div class="action-row">
-        <button class="action-btn red" onclick="repayLoan(${loan})">💸 Погасить полностью</button>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="loan-panel loan-none">
-        Нет активных кредитов<br>
-        <small>Максимум: ${fmt(maxLoan)} см · Гасится автоматически при росте</small>
-      </div>
-      <div class="action-row">
-        <button class="action-btn green" onclick="openLoanModal(${maxLoan})">💳 Взять кредит</button>
-      </div>`;
-  }
-}
-
-function renderUserDeposits() {
-  const el = document.getElementById('user-deposits-section');
-  const deps = userBankData?.deposits || [];
-  const RATE_LABELS = {5: '+5%', 12: '+12%', 20: '+20%'};
-  let html = '';
-  if (deps.length) {
-    html = deps.map(dep => {
-      const canClaim = dep.is_mature;
-      const timeLeft = dep.remaining_sec > 0 ? fmtDur(dep.remaining_sec) : '';
-      return `<div class="dep-item">
-        <div>
-          <div class="dep-amount">${fmt(dep.amount)} → ${fmt(dep.payout)} см</div>
-          <div class="dep-meta">${dep.days}д. · ${RATE_LABELS[dep.rate] || dep.rate + '%'} · ${canClaim ? '✅ Готов к выводу' : `⏰ ${timeLeft}`}</div>
-        </div>
-        <button class="claim-btn" ${canClaim ? '' : 'disabled'} onclick="claimDeposit(${dep.deposit_id})">Получить</button>
-      </div>`;
-    }).join('');
-  } else {
-    html = '<div style="padding:10px 0;font-size:13px;color:var(--muted)">Нет активных вкладов</div>';
-  }
-  el.innerHTML = html + `
-    <div class="action-row" style="margin-top:10px">
-      <button class="action-btn green" onclick="openDepositModal()">💰 Создать вклад</button>
-    </div>`;
-}
-
-function openLoanModal(maxLoan) {
-  openModal('💳 Взять кредит',
-    `<div class="modal-hint">Максимальная сумма: <b style="color:var(--text)">${fmt(maxLoan)} см</b><br>Долг автоматически гасится из каждого роста огурца.</div>
-     <div class="sec" style="margin-bottom:4px">Сумма (см)</div>
-     <input id="loan-amt-inp" class="modal-input" type="number" min="1" max="${maxLoan}" placeholder="Введи сумму...">`,
-    'Взять', takeLoan);
-}
-
-async function takeLoan() {
-  const amount = parseInt(document.getElementById('loan-amt-inp')?.value) || 0;
-  if (amount < 1) { showToast('Введи сумму', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/bank/${userId}/loan`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ amount })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`💳 Кредит ${fmt(d.loan)} см выдан!`); loadUserBank(); loadUserData(); }
-    else {
-      const msgs = { already_has_loan: 'Сначала погаси текущий долг', exceeds_limit: `Лимит ${fmt(d.max_loan)} см`, insufficient_bank: 'Банк не может выдать такую сумму' };
-      showToast('❌ ' + (msgs[d.error] || d.error || 'Ошибка'), true);
-    }
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-async function repayLoan(loanAmt) {
-  try {
-    const r = await fetch(`/api/bank/${userId}/repay`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ amount: loanAmt || 9999999 })
-    });
-    const d = await r.json();
-    if (d.success) {
-      const msg = d.loan_left > 0 ? `💸 Погашено ${fmt(d.repaid)} см, остаток ${fmt(d.loan_left)} см` : '✅ Долг полностью погашен!';
-      showToast(msg); loadUserBank(); loadUserData();
-    } else showToast('❌ ' + (d.error === 'insufficient' ? 'Недостаточно средств' : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-function openDepositModal() {
-  selectedDepDays = 1;
-  openModal('💰 Открыть вклад',
-    `<div class="sec" style="margin-bottom:6px">Срок</div>
-     <div class="dep-days-grid">
-       <button class="dep-day-btn sel" id="dep-1" onclick="selDepDays(1)">1 день<br><b style="color:var(--green)">+5%</b></button>
-       <button class="dep-day-btn" id="dep-2" onclick="selDepDays(2)">2 дня<br><b style="color:var(--green)">+12%</b></button>
-       <button class="dep-day-btn" id="dep-3" onclick="selDepDays(3)">3 дня<br><b style="color:var(--green)">+20%</b></button>
-     </div>
-     <div class="sec" style="margin-top:4px;margin-bottom:4px">Сумма (см)</div>
-     <input id="dep-amt-inp" class="modal-input" type="number" min="1" placeholder="Введи сумму...">`,
-    'Открыть вклад', createDeposit);
-}
-
-function selDepDays(d) {
-  selectedDepDays = d;
-  [1,2,3].forEach(n => document.getElementById('dep-' + n)?.classList.toggle('sel', n === d));
-}
-
-async function createDeposit() {
-  const amount = parseInt(document.getElementById('dep-amt-inp')?.value) || 0;
-  if (amount < 1) { showToast('Введи сумму вклада', true); return; }
-  closeModal();
-  try {
-    const r = await fetch(`/api/bank/${userId}/deposit/create`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ days: selectedDepDays, amount })
-    });
-    const d = await r.json();
-    if (d.success) { showToast(`✅ Вклад ${fmt(d.amount)} → ${fmt(d.payout)} см за ${d.days}д.`); loadUserBank(); }
-    else showToast('❌ ' + (d.error === 'insufficient' ? 'Недостаточно см' : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
-}
-
-async function claimDeposit(depositId) {
-  try {
-    const r = await fetch(`/api/bank/${userId}/deposit/${depositId}/claim`, { method: 'POST' });
-    const d = await r.json();
-    if (d.success) { showToast(`🎉 Получено ${fmt(d.payout)} см!`); loadUserBank(); loadUserData(); }
-    else showToast('❌ ' + (d.error === 'not_mature' ? `Ещё не созрел (${fmtDur(d.remaining_sec)})` : d.error || 'Ошибка'), true);
-  } catch(e) { showToast('❌ Ошибка', true); }
 }
 
 // ── FORBES ───────────────────────────────────────────────
@@ -1281,59 +823,16 @@ async function loadForbes() {
   } catch(e) { document.getElementById('forbes-list').innerHTML = '<div class="no-data">Ошибка загрузки</div>'; }
 }
 
-// ── MODAL ────────────────────────────────────────────────
-function openModal(title, bodyHTML, okText, onOk) {
-  document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-body').innerHTML = bodyHTML;
-  document.getElementById('modal-ok').textContent = okText || 'Подтвердить';
-  document.getElementById('modal-ok').onclick = onOk;
-  document.getElementById('modal-ov').style.display = 'flex';
-  setTimeout(() => {
-    const inp = document.getElementById('modal-body').querySelector('input');
-    if (inp) inp.focus();
-  }, 80);
-}
-
-function closeModal() {
-  document.getElementById('modal-ov').style.display = 'none';
-}
-
 // ── HELPERS ───────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0'); }
-
 function fmt(n) {
   n = Number(n);
   if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
-  return String(Math.round(n));
-}
-
-function fmtK(n) {
-  n = Number(n);
-  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return Math.round(n/1000) + 'K';
   return String(n);
 }
-
-function fmtDur(sec) {
-  if (!sec) return '';
-  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
-  if (h > 0) return `${h}ч ${pad(m)}м`;
-  if (m > 0) return `${m}м ${pad(s)}с`;
-  return `${s}с`;
-}
-
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function showToast(msg, isError) {
-  const p = document.getElementById('gain-pop');
-  p.textContent = msg;
-  p.style.background = isError ? '#f85149' : '#3fb950';
-  p.style.boxShadow = isError ? '0 4px 20px rgba(248,81,73,.5)' : '0 4px 20px rgba(63,185,80,.5)';
-  p.classList.add('show');
-  setTimeout(() => p.classList.remove('show'), 2500);
 }
 </script>
 </body>
