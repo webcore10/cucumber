@@ -2,6 +2,7 @@ import asyncio
 import io
 import os
 import random
+import traceback
 import aiosqlite
 import aiohttp
 from aiohttp import web as aio_web
@@ -3788,7 +3789,7 @@ async def set_commands(bot_: Bot):
 
 # -------------------- ВЕБ-СЕРВЕР (встроенный) --------------------
 
-WEBAPP_PORT = int(os.environ.get("WEBAPP_PORT", "8080"))
+WEBAPP_PORT = int(os.environ.get("WEBAPP_PORT", os.environ.get("PORT", "8080")))
 _WEBAPP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
 _WEBAPP_CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -3888,7 +3889,7 @@ async def _wa_grow(request):
                          (new_size, new_max, now.isoformat(), uid))
         await db.commit()
     return _json({"success": True, "gain": gain, "kept": kept, "repaid": repaid,
-                  "new_size": new_size, "cooldown_remaining": 3600})
+                  "new_size": new_size, "cooldown_remaining": GROW_COOLDOWN})
 
 
 async def _wa_stocks(request):
@@ -4587,8 +4588,10 @@ async def _run_webapp_safe():
         await start_webapp()
     except OSError as e:
         print(f"⚠️ Веб-сервер не запустился (порт {WEBAPP_PORT}): {e}")
+        traceback.print_exc()
     except Exception as e:
         print(f"⚠️ Веб-сервер ошибка: {e}")
+        traceback.print_exc()
 
 
 async def start_webapp():
