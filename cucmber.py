@@ -41,7 +41,8 @@ dp = Dispatcher()
 DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cucumbers.db")
 ADMIN_ID = 5971748042
 BOT_USERNAME = ""
-WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
+WEBAPP_URL = os.environ.get("WEBAPP_URL", "")
+GROW_COOLDOWN = 86400  # 24 часа в секундах  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
 
 def now_msk():
@@ -3836,7 +3837,7 @@ async def _wa_user(request):
             lt = datetime.fromisoformat(last_grow)
             if lt.tzinfo is None:
                 lt = MSK.localize(lt)
-            cd = max(0, int(3600 - (now_msk() - lt).total_seconds()))
+            cd = max(0, int(GROW_COOLDOWN - (now_msk() - lt).total_seconds()))
         except Exception:
             pass
     return _json({"user_id": uid, "size": size or 0, "wins": wins or 0,
@@ -3864,8 +3865,8 @@ async def _wa_grow(request):
                 if lt.tzinfo is None:
                     lt = MSK.localize(lt)
                 elapsed = (now - lt).total_seconds()
-                if elapsed < 3600:
-                    return _json({"error": "cooldown", "cooldown_remaining": int(3600 - elapsed)}, 429)
+                if elapsed < GROW_COOLDOWN:
+                    return _json({"error": "cooldown", "cooldown_remaining": int(GROW_COOLDOWN - elapsed)}, 429)
             except Exception:
                 pass
         gain = random.randint(1, 15)
@@ -4032,8 +4033,7 @@ async def _wa_business(request):
         uid = int(request.match_info["user_id"])
     except Exception:
         return _json({"error": "invalid"}, 400)
-    _biz = {"farm": ("🌾","Ферма"), "factory": ("🏭","Завод"), "mine": ("⛏️","Шахта"),
-            "brewery": ("🍺","Пивоварня"), "it": ("💻","IT-компания")}
+    now = now_msk()
     async with aiosqlite.connect(DB_NAME) as db:
         try:
             cur = await db.execute(
@@ -4043,11 +4043,43 @@ async def _wa_business(request):
         except Exception:
             rows = []
     result = []
-    for r in rows:
-        em, lb = _biz.get(r[1], ("🏢", r[1]))
-        result.append({"biz_id": r[0], "type": r[1], "emoji": em, "label": lb,
-                        "name": r[2], "level": r[3] or 1, "employees": r[4] or 0,
-                        "materials": r[5] or 0, "mat_qual": r[6] or "low", "goods": r[7] or 0})
+    for row in rows:
+        biz_id, biz_type, name, level, employees, materials, mat_qual, goods, last_prod = row
+        cfg = BIZ_TYPES.get(biz_type, {"emoji": "🏢", "label": biz_type, "min_emp": 1,
+                                        "mat_cycle": 10, "salary": 100, "base_out": 1000,
+                                        "tax": 0.15, "upg_cost": 100000, "prod_h": 4})
+        qual = MATERIAL_QUALITY.get(mat_qual or "low", MATERIAL_QUALITY["low"])
+        lv = level or 1
+        emp = employees or 0
+        mats = materials or 0
+        can_produce, cd_sec = False, 0
+        if last_prod:
+            try:
+                last_dt = datetime.fromisoformat(last_prod)
+                if last_dt.tzinfo is None:
+                    last_dt = MSK.localize(last_dt)
+                next_dt = last_dt + timedelta(hours=cfg["prod_h"])
+                if now >= next_dt:
+                    can_produce = True
+                else:
+                    cd_sec = int((next_dt - now).total_seconds())
+            except Exception:
+                can_produce = True
+        else:
+            can_produce = True
+        ready = emp >= cfg["min_emp"] and mats >= cfg["mat_cycle"]
+        goods_gain = int(cfg["base_out"] * emp * qual["eff"] * BIZ_LEVEL_MULT.get(lv, 1.0)) if ready else 0
+        result.append({
+            "biz_id": biz_id, "type": biz_type, "emoji": cfg["emoji"], "label": cfg["label"],
+            "name": name, "level": lv, "employees": emp, "materials": mats,
+            "mat_qual": mat_qual or "low", "mat_label": qual["label"],
+            "goods": goods or 0, "can_produce": can_produce and ready,
+            "cd_sec": cd_sec, "ready": ready, "goods_gain": goods_gain,
+            "min_emp": cfg["min_emp"], "mat_cycle": cfg["mat_cycle"],
+            "tax_pct": int(cfg["tax"] * 100), "max_emp": lv * 10, "prod_h": cfg["prod_h"],
+            "upg_cost": cfg["upg_cost"] * lv if lv < 5 else None,
+            "upg_mult": BIZ_LEVEL_MULT.get(lv + 1) if lv < 5 else None,
+        })
     return _json(result)
 
 
@@ -4079,6 +4111,476 @@ async def _wa_clan(request):
                                for m in members]})
 
 
+_WA_DEPOSIT_RATES = {1: 0.05, 2: 0.12, 3: 0.20}
+
+
+async def _wa_bank_user(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except Exception:
+        return _json({"error": "invalid"}, 400)
+    now = now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size,loan FROM users WHERE user_id=?", (uid,))
+        urow = await cur.fetchone()
+        if not urow:
+            return _json({"error": "not found"}, 404)
+        size, loan = urow
+        cap = await get_bank_capital()
+        cur2 = await db.execute(
+            "SELECT deposit_id,amount,rate,days,matures_at FROM deposits "
+            "WHERE user_id=? AND claimed=0 ORDER BY deposit_id", (uid,))
+        dep_rows = await cur2.fetchall()
+    deposits = []
+    for dep_id, amount, rate, days, matures_at in dep_rows:
+        try:
+            mat_dt = datetime.fromisoformat(matures_at)
+            if mat_dt.tzinfo is None:
+                mat_dt = MSK.localize(mat_dt)
+            is_mature = now >= mat_dt
+            remaining_sec = max(0, int((mat_dt - now).total_seconds())) if not is_mature else 0
+        except Exception:
+            is_mature, remaining_sec = False, 0
+        deposits.append({"deposit_id": dep_id, "amount": amount or 0,
+                         "rate": round((rate or 0) * 100), "days": days,
+                         "payout": int((amount or 0) * (1 + (rate or 0))),
+                         "is_mature": is_mature, "remaining_sec": remaining_sec})
+    return _json({"size": size or 0, "loan": loan or 0,
+                  "max_loan": min(cap, 100000), "capital": cap, "deposits": deposits})
+
+
+async def _wa_bank_loan(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount must be > 0"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size,loan FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        size, existing_loan = row
+        if existing_loan and existing_loan > 0:
+            return _json({"error": "already_has_loan"}, 400)
+        cap = await get_bank_capital()
+        max_loan = min(cap, 100000)
+        if amount > max_loan:
+            return _json({"error": "exceeds_limit", "max_loan": max_loan}, 400)
+        now_str = now_msk().isoformat()
+        new_size = (size or 0) + amount
+        await db.execute("UPDATE users SET size=?,loan=?,loan_date=? WHERE user_id=?",
+                         (new_size, amount, now_str, uid))
+        await db.execute("UPDATE bank SET capital=capital-? WHERE id=1", (amount,))
+        await db.commit()
+    return _json({"success": True, "loan": amount, "new_size": new_size})
+
+
+async def _wa_bank_repay(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount must be > 0"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size,loan FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        size, loan = row
+        size, loan = size or 0, loan or 0
+        if loan <= 0:
+            return _json({"error": "no_loan"}, 400)
+        repay = min(amount, loan, size)
+        if repay <= 0:
+            return _json({"error": "insufficient"}, 400)
+        new_loan = loan - repay
+        new_size = size - repay
+        if new_loan > 0:
+            await db.execute("UPDATE users SET size=?,loan=? WHERE user_id=?", (new_size, new_loan, uid))
+        else:
+            await db.execute("UPDATE users SET size=?,loan=0,loan_date=NULL WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (repay,))
+        await db.commit()
+    return _json({"success": True, "repaid": repay, "loan_left": new_loan, "new_size": new_size})
+
+
+async def _wa_bank_deposit_create(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0))
+        days = int(body.get("days", 1))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount must be > 0"}, 400)
+    if days not in _WA_DEPOSIT_RATES:
+        return _json({"error": "days must be 1, 2 or 3"}, 400)
+    rate = _WA_DEPOSIT_RATES[days]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        size = row[0] or 0
+        if size < amount:
+            return _json({"error": "insufficient", "size": size}, 400)
+        now = now_msk()
+        matures_at = now + timedelta(days=days)
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (size - amount, uid))
+        await db.execute(
+            "INSERT INTO deposits (user_id,amount,rate,days,created_at,matures_at) VALUES (?,?,?,?,?,?)",
+            (uid, amount, rate, days, now.isoformat(), matures_at.isoformat()))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (amount,))
+        await db.commit()
+    return _json({"success": True, "amount": amount, "rate_pct": round(rate * 100),
+                  "days": days, "payout": int(amount * (1 + rate))})
+
+
+async def _wa_bank_deposit_claim(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        deposit_id = int(request.match_info["deposit_id"])
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    now = now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT amount,rate,matures_at,claimed FROM deposits WHERE deposit_id=? AND user_id=?",
+            (deposit_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        amount, rate, matures_at, claimed = row
+        if claimed:
+            return _json({"error": "already_claimed"}, 400)
+        try:
+            mat_dt = datetime.fromisoformat(matures_at)
+            if mat_dt.tzinfo is None:
+                mat_dt = MSK.localize(mat_dt)
+        except Exception:
+            return _json({"error": "invalid date"}, 500)
+        if now < mat_dt:
+            return _json({"error": "not_mature",
+                          "remaining_sec": int((mat_dt - now).total_seconds())}, 400)
+        payout = int((amount or 0) * (1 + (rate or 0)))
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        new_size = ((await cur2.fetchone())[0] or 0) + payout
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE deposits SET claimed=1 WHERE deposit_id=?", (deposit_id,))
+        await db.execute("UPDATE bank SET capital=MAX(0,capital-?) WHERE id=1", (payout - (amount or 0),))
+        await db.commit()
+    return _json({"success": True, "payout": payout, "new_size": new_size})
+
+
+async def _wa_biz_types(request):
+    result = [{"type": k, "emoji": v["emoji"], "label": v["label"], "cost": v["cost"],
+               "min_emp": v["min_emp"], "tax_pct": int(v["tax"] * 100), "prod_h": v["prod_h"]}
+              for k, v in BIZ_TYPES.items()]
+    return _json(result)
+
+
+async def _wa_biz_create(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        biz_type = str(body.get("biz_type", ""))
+        name = str(body.get("name", "")).strip()
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if biz_type not in BIZ_TYPES:
+        return _json({"error": "unknown_type"}, 400)
+    if len(name) < 2 or len(name) > 40:
+        return _json({"error": "name 2–40 chars"}, 400)
+    cfg = BIZ_TYPES[biz_type]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        size = row[0] or 0
+        if size < cfg["cost"]:
+            return _json({"error": "insufficient", "need": cfg["cost"], "size": size}, 400)
+        cur2 = await db.execute("SELECT COUNT(*) FROM businesses WHERE owner_id=?", (uid,))
+        if (await cur2.fetchone())[0] >= 3:
+            return _json({"error": "max_businesses"}, 400)
+        now_str = now_msk().isoformat()
+        cur3 = await db.execute(
+            "INSERT INTO businesses (owner_id,biz_type,name,created_at) VALUES (?,?,?,?)",
+            (uid, biz_type, name, now_str))
+        biz_id = cur3.lastrowid
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (size - cfg["cost"], uid))
+        await db.commit()
+    return _json({"success": True, "biz_id": biz_id, "new_size": size - cfg["cost"]})
+
+
+async def _wa_biz_produce(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    now = now_msk()
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT biz_type,level,employees,materials,mat_qual,goods,last_prod "
+            "FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        biz_type, level, employees, materials, mat_qual, goods, last_prod = row
+        cfg = BIZ_TYPES.get(biz_type)
+        if not cfg:
+            return _json({"error": "unknown type"}, 400)
+        if last_prod:
+            try:
+                last_dt = datetime.fromisoformat(last_prod)
+                if last_dt.tzinfo is None:
+                    last_dt = MSK.localize(last_dt)
+                if now < last_dt + timedelta(hours=cfg["prod_h"]):
+                    cd = int((last_dt + timedelta(hours=cfg["prod_h"]) - now).total_seconds())
+                    return _json({"error": "cooldown", "cd_sec": cd}, 429)
+            except Exception:
+                pass
+        emp = employees or 0
+        mats = materials or 0
+        if emp < cfg["min_emp"]:
+            return _json({"error": "not_enough_employees", "need": cfg["min_emp"]}, 400)
+        if mats < cfg["mat_cycle"]:
+            return _json({"error": "not_enough_materials", "need": cfg["mat_cycle"]}, 400)
+        qual = MATERIAL_QUALITY.get(mat_qual or "low", MATERIAL_QUALITY["low"])
+        lv = level or 1
+        salary = emp * cfg["salary"]
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        if size < salary:
+            return _json({"error": "cannot_pay_salary", "need": salary, "size": size}, 400)
+        goods_gain = int(cfg["base_out"] * emp * qual["eff"] * BIZ_LEVEL_MULT.get(lv, 1.0))
+        new_size = size - salary
+        new_mats = mats - cfg["mat_cycle"]
+        new_goods = (goods or 0) + goods_gain
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE businesses SET materials=?,goods=?,last_prod=? WHERE biz_id=?",
+                         (new_mats, new_goods, now.isoformat(), biz_id))
+        await db.commit()
+    return _json({"success": True, "goods_gain": goods_gain, "salary_paid": salary,
+                  "materials_left": new_mats, "goods_total": new_goods, "new_size": new_size})
+
+
+async def _wa_biz_buy_materials(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+        body = await request.json()
+        qual_key = str(body.get("qual", "low"))
+        qty = int(body.get("qty", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if qual_key not in MATERIAL_QUALITY:
+        return _json({"error": "unknown quality"}, 400)
+    if qty < 1:
+        return _json({"error": "qty must be >= 1"}, 400)
+    qual = MATERIAL_QUALITY[qual_key]
+    total_cost = qty * qual["price"]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT materials FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        if size < total_cost:
+            return _json({"error": "insufficient", "need": total_cost, "size": size}, 400)
+        new_mats = (row[0] or 0) + qty
+        new_size = size - total_cost
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE businesses SET materials=?,mat_qual=? WHERE biz_id=?",
+                         (new_mats, qual_key, biz_id))
+        await db.commit()
+    return _json({"success": True, "qty": qty, "cost": total_cost,
+                  "materials_total": new_mats, "new_size": new_size})
+
+
+async def _wa_biz_hire(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+        body = await request.json()
+        count = int(body.get("count", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if count < 1:
+        return _json({"error": "count must be >= 1"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT biz_type,employees,level FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        biz_type, employees, level = row
+        cfg = BIZ_TYPES.get(biz_type, {})
+        lv = level or 1
+        max_emp = lv * 10
+        emp = employees or 0
+        if emp + count > max_emp:
+            return _json({"error": "exceeds_max", "max_emp": max_emp}, 400)
+        recruit_cost = cfg.get("salary", 1000) * 5 * count
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        if size < recruit_cost:
+            return _json({"error": "insufficient", "need": recruit_cost, "size": size}, 400)
+        new_size = size - recruit_cost
+        new_emp = emp + count
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE businesses SET employees=? WHERE biz_id=?", (new_emp, biz_id))
+        await db.commit()
+    return _json({"success": True, "hired": count, "employees": new_emp,
+                  "cost": recruit_cost, "new_size": new_size})
+
+
+async def _wa_biz_fire(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT employees FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        fired = row[0] or 0
+        await db.execute("UPDATE businesses SET employees=0 WHERE biz_id=?", (biz_id,))
+        await db.commit()
+    return _json({"success": True, "fired": fired})
+
+
+async def _wa_biz_sell(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT biz_type,goods FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        biz_type, goods = row
+        goods = goods or 0
+        if goods <= 0:
+            return _json({"error": "no_goods"}, 400)
+        cfg = BIZ_TYPES.get(biz_type, {"tax": 0.15})
+        tax = int(goods * cfg["tax"])
+        received = goods - tax
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        new_size = size + received
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE businesses SET goods=0 WHERE biz_id=?", (biz_id,))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (tax,))
+        await db.commit()
+    return _json({"success": True, "goods": goods, "tax": tax, "received": received, "new_size": new_size})
+
+
+async def _wa_biz_upgrade(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        biz_id = int(request.match_info["biz_id"])
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT biz_type,level FROM businesses WHERE biz_id=? AND owner_id=?", (biz_id, uid))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "not found"}, 404)
+        biz_type, level = row
+        lv = level or 1
+        if lv >= 5:
+            return _json({"error": "max_level"}, 400)
+        cfg = BIZ_TYPES.get(biz_type, {"upg_cost": 1000000})
+        upg_cost = cfg["upg_cost"] * lv
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        if size < upg_cost:
+            return _json({"error": "insufficient", "need": upg_cost, "size": size}, 400)
+        new_level = lv + 1
+        new_size = size - upg_cost
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE businesses SET level=? WHERE biz_id=?", (new_level, biz_id))
+        await db.commit()
+    return _json({"success": True, "level": new_level,
+                  "mult": BIZ_LEVEL_MULT.get(new_level), "new_size": new_size})
+
+
+async def _wa_clan_contribute(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount must be > 0"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT clan_id FROM clan_members WHERE user_id=?", (uid,))
+        mrow = await cur.fetchone()
+        if not mrow:
+            return _json({"error": "not_in_clan"}, 400)
+        clan_id = mrow[0]
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur2.fetchone())[0] or 0
+        if size < amount:
+            return _json({"error": "insufficient", "size": size}, 400)
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (size - amount, uid))
+        await db.execute("UPDATE clans SET treasury=treasury+? WHERE clan_id=?", (amount, clan_id))
+        cur3 = await db.execute("SELECT treasury FROM clans WHERE clan_id=?", (clan_id,))
+        new_treasury = (await cur3.fetchone())[0]
+        await db.commit()
+    return _json({"success": True, "contributed": amount,
+                  "treasury": new_treasury, "new_size": size - amount})
+
+
+async def _wa_clan_withdraw(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0))
+    except Exception:
+        return _json({"error": "invalid input"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount must be > 0"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT clan_id FROM clan_members WHERE user_id=?", (uid,))
+        mrow = await cur.fetchone()
+        if not mrow:
+            return _json({"error": "not_in_clan"}, 400)
+        clan_id = mrow[0]
+        cur2 = await db.execute("SELECT owner_id,treasury FROM clans WHERE clan_id=?", (clan_id,))
+        crow = await cur2.fetchone()
+        if not crow or crow[0] != uid:
+            return _json({"error": "not_owner"}, 403)
+        treasury = crow[1] or 0
+        if amount > treasury:
+            return _json({"error": "insufficient_treasury", "treasury": treasury}, 400)
+        cur3 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        size = (await cur3.fetchone())[0] or 0
+        new_size = size + amount
+        new_treasury = treasury - amount
+        await db.execute("UPDATE users SET size=? WHERE user_id=?", (new_size, uid))
+        await db.execute("UPDATE clans SET treasury=? WHERE clan_id=?", (new_treasury, clan_id))
+        await db.commit()
+    return _json({"success": True, "withdrawn": amount,
+                  "treasury": new_treasury, "new_size": new_size})
+
+
 async def _run_webapp_safe():
     """Запускает веб-сервер в фоне. Любые ошибки логируются, бот продолжает работать."""
     try:
@@ -4101,8 +4603,26 @@ async def start_webapp():
     app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
     app.router.add_get("/api/bank", _wa_bank)
     app.router.add_post("/api/slots/{user_id}", _wa_slots)
+    # Банк (личный)
+    app.router.add_get("/api/bank/{user_id}", _wa_bank_user)
+    app.router.add_post("/api/bank/{user_id}/loan", _wa_bank_loan)
+    app.router.add_post("/api/bank/{user_id}/repay", _wa_bank_repay)
+    app.router.add_post("/api/bank/{user_id}/deposit/create", _wa_bank_deposit_create)
+    app.router.add_post("/api/bank/{user_id}/deposit/{deposit_id}/claim", _wa_bank_deposit_claim)
+    # Бизнес
+    app.router.add_get("/api/business/types", _wa_biz_types)
     app.router.add_get("/api/business/{user_id}", _wa_business)
+    app.router.add_post("/api/business/{user_id}/create", _wa_biz_create)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/produce", _wa_biz_produce)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/buy-materials", _wa_biz_buy_materials)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/hire", _wa_biz_hire)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/fire", _wa_biz_fire)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/sell", _wa_biz_sell)
+    app.router.add_post("/api/business/{user_id}/{biz_id}/upgrade", _wa_biz_upgrade)
+    # Клан
     app.router.add_get("/api/clan/{user_id}", _wa_clan)
+    app.router.add_post("/api/clan/{user_id}/contribute", _wa_clan_contribute)
+    app.router.add_post("/api/clan/{user_id}/withdraw", _wa_clan_withdraw)
     app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
     runner = aio_web.AppRunner(app)
     await runner.setup()
