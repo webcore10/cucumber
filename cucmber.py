@@ -3496,8 +3496,21 @@ _WEBAPP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
 _WEBAPP_CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
 }
+
+
+@aio_web.middleware
+async def _cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        return aio_web.Response(status=204, headers=_WEBAPP_CORS)
+    try:
+        response = await handler(request)
+    except aio_web.HTTPException as ex:
+        response = ex
+    for k, v in _WEBAPP_CORS.items():
+        response.headers[k] = v
+    return response
 
 
 def _json(data, status=200):
@@ -4315,7 +4328,7 @@ async def _run_webapp_safe():
 
 async def start_webapp():
     """Запускает встроенный веб-сервер. Бот работает независимо от этой функции."""
-    app = aio_web.Application()
+    app = aio_web.Application(middlewares=[_cors_middleware])
     app.router.add_get("/", _wa_index)
     app.router.add_get("/api/user/{user_id}", _wa_user)
     app.router.add_post("/api/grow/{user_id}", _wa_grow)
