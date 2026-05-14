@@ -581,22 +581,24 @@ async function loadPrices() {
 
 function renderPriceLists() {
   const el=document.getElementById('stocks-list');
-  if (!allPrices.length) { el.innerHTML='<div class="no-data">Нет данных</div>'; return; }
+  if (!Array.isArray(allPrices)||!allPrices.length) { el.innerHTML='<div class="no-data">Нет данных о ценах — подождите несколько минут</div>'; return; }
   el.innerHTML=allPrices.map(it=>{
     const up=it.change>=0;
     const emoji=it.name.split(' ')[0];
     const nameOnly=it.name.split(' ').slice(1).join(' ');
-    const prStr=it.price>0?(it.price>=1?it.price.toFixed(2):it.price.toFixed(4))+' см':'нет данных';
+    const hasPrice=it.price>0;
+    const prStr=hasPrice?(it.price>=1?it.price.toFixed(2):it.price.toFixed(4))+' см':'—';
     const chStr=it.change!==0?(up?'+':'')+it.change.toFixed(2)+'%':'—';
     const sel=curTicker===it.ticker?'sel':'';
+    const dis=hasPrice?'':'disabled';
     return `<div class="tcard ${sel}">
       <div class="tcard-row" onclick="selectTicker('${it.ticker}','${esc(it.name)}',${it.price},${it.change})">
         <div class="tl"><span class="tem">${emoji}</span><div><div class="tnm">${esc(nameOnly)}</div><div class="tsy">${it.ticker}</div></div></div>
-        <div class="tr"><div class="tpr">${prStr}</div><div class="tch ${up?'up':'down'}">${chStr}</div></div>
+        <div class="tr"><div class="tpr ${hasPrice?'':''}' style="${hasPrice?'':'color:var(--muted)'}">${prStr}</div><div class="tch ${up?'up':'down'}">${chStr}</div></div>
       </div>
       <div class="trade-row">
-        <button class="trade-btn buy-btn" onclick="openBuyStock('${it.ticker}','${esc(it.name)}',${it.price})">🛒 Купить</button>
-        <button class="trade-btn sell-btn" onclick="openSellStock('${it.ticker}','${esc(it.name)}',${it.price})">💸 Продать</button>
+        <button class="trade-btn buy-btn" ${dis} onclick="openBuyStock('${it.ticker}','${esc(it.name)}',${it.price})">🛒 Купить</button>
+        <button class="trade-btn sell-btn" ${dis} onclick="openSellStock('${it.ticker}','${esc(it.name)}',${it.price})">💸 Продать</button>
       </div>
     </div>`;
   }).join('');
@@ -636,6 +638,7 @@ function renderChart(pts, isUp) {
 // ── STOCK TRADING ─────────────────────────────────────────
 function openBuyStock(ticker, name, price) {
   if (!userId) { showToast('Открой через Telegram',true); return; }
+  if (!price||price<=0) { showToast('Нет данных о цене',true); return; }
   openModal(`🛒 Купить ${name}`,
     `<div class="modal-label">Текущая цена: ${price>0?price.toFixed(2):' — '} см/акция</div>
      <input class="modal-inp" id="m-qty" type="number" min="0.001" step="0.001" placeholder="Количество акций" inputmode="decimal">
@@ -656,12 +659,13 @@ async function doStockBuy(ticker) {
     const r=await fetch(`/api/stocks/buy/${userId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker,qty})});
     const d=await r.json();
     if (d.success) { showToast(`✅ Куплено ${qty} акций ${ticker} за ${d.cost} см`,false); loadUserData(); portLoaded=false; }
-    else showToast('❌ '+(d.error==='insufficient'?'Не хватает см':d.error),true);
+    else showToast('❌ '+({insufficient:'Не хватает см','no price':'Нет данных о цене'}[d.error]||d.error),true);
   } catch(e) { showToast('❌ Ошибка',true); }
 }
 
 function openSellStock(ticker, name, price) {
   if (!userId) { showToast('Открой через Telegram',true); return; }
+  if (!price||price<=0) { showToast('Нет данных о цене',true); return; }
   openModal(`💸 Продать ${name}`,
     `<div class="modal-label">Текущая цена: ${price>0?price.toFixed(2):' — '} см/акция (комиссия 5%)</div>
      <input class="modal-inp" id="m-qty" type="number" min="0.001" step="0.001" placeholder="Количество акций" inputmode="decimal">
@@ -683,7 +687,7 @@ async function doStockSell(ticker) {
     const r=await fetch(`/api/stocks/sell/${userId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker,qty})});
     const d=await r.json();
     if (d.success) { showToast(`✅ Продано ${qty} акций, получено ${d.earned} см`,false); loadUserData(); portLoaded=false; }
-    else showToast('❌ '+(d.error==='insufficient_shares'?'Не хватает акций':d.error),true);
+    else showToast('❌ '+({insufficient_shares:'Не хватает акций','no price':'Нет данных о цене'}[d.error]||d.error),true);
   } catch(e) { showToast('❌ Ошибка',true); }
 }
 

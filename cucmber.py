@@ -70,7 +70,7 @@ STOCKS = {
     "AMD":   "🔴 AMD",
     "ORCL":  "🗄️ Oracle",
     "CRM":   "☁️ Salesforce",
-    "COIN":  "🪙 Coinbase",
+    "UBER":  "🚗 Uber",
 }
 
 # -------------------- БИЗНЕС — КОНФИГ --------------------
@@ -101,40 +101,47 @@ async def get_total_ticker_shares(ticker: str) -> float:
     return row[0] if row else 0.0
 
 
+async def _fetch_stock_prices():
+    """Загружает актуальные цены с Yahoo Finance и сохраняет в БД."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    prices = {}
+    try:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            for ticker in STOCKS:
+                try:
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+                    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as r:
+                        data = await r.json(content_type=None)
+                        prices[ticker] = round(data["chart"]["result"][0]["meta"]["regularMarketPrice"], 2)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    if not prices:
+        return
+    now_str = now_msk().isoformat()
+    async with aiosqlite.connect(DB_NAME) as db:
+        for ticker, price in prices.items():
+            await db.execute(
+                "INSERT INTO price_history (ticker, price, recorded_at) VALUES (?, ?, ?)",
+                (ticker, price, now_str)
+            )
+        for ticker in STOCKS:
+            await db.execute(
+                """DELETE FROM price_history WHERE ticker=? AND id NOT IN (
+                   SELECT id FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 72
+                )""", (ticker, ticker)
+            )
+        await db.commit()
+    print(f"✅ Цены обновлены: {len(prices)}/{len(STOCKS)} акций")
+
+
 async def update_real_stock_prices_loop():
+    await _fetch_stock_prices()  # сразу при запуске
     while True:
         await asyncio.sleep(3600)
-        headers = {"User-Agent": "Mozilla/5.0"}
-        prices = {}
-        try:
-            connector = aiohttp.TCPConnector(ssl=False)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                for ticker in STOCKS:
-                    try:
-                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
-                        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=6)) as r:
-                            data = await r.json(content_type=None)
-                            prices[ticker] = round(data["chart"]["result"][0]["meta"]["regularMarketPrice"], 2)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        if not prices:
-            continue
-        now_str = now_msk().isoformat()
-        async with aiosqlite.connect(DB_NAME) as db:
-            for ticker, price in prices.items():
-                await db.execute(
-                    "INSERT INTO price_history (ticker, price, recorded_at) VALUES (?, ?, ?)",
-                    (ticker, price, now_str)
-                )
-            for ticker in STOCKS:
-                await db.execute(
-                    """DELETE FROM price_history WHERE ticker=? AND id NOT IN (
-                       SELECT id FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 72
-                    )""", (ticker, ticker)
-                )
-            await db.commit()
+        await _fetch_stock_prices()
 
 
 async def luxury_tax_loop():
