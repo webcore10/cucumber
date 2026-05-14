@@ -1750,19 +1750,8 @@ function showInviteModal(gid){
   friends.forEach(function(f){
     opts += '<option value="'+f.user_id+'">'+esc(f.name)+'</option>';
   });
-  var html = '<div class="modal-overlay" id="invite-modal" onclick="if(event.target===this)closeInviteModal()">' +
-    '<div class="modal-box">' +
-    '<div class="modal-title">📨 Пригласить друга</div>' +
-    '<select class="modal-inp" id="invite-friend-sel">' + opts + '</select>' +
-    '<button class="btn btn-b btn-full" style="margin-top:12px" onclick="doInviteToGame('+gid+')">Отправить приглашение</button>' +
-    '<button class="btn btn-full" style="margin-top:8px;background:var(--c3)" onclick="closeInviteModal()">Отмена</button>' +
-    '</div></div>';
-  document.body.insertAdjacentHTML('beforeend', html);
-}
-
-function closeInviteModal(){
-  var m = document.getElementById('invite-modal');
-  if (m) m.remove();
+  var body = '<select class="modal-inp" id="invite-friend-sel">'+opts+'</select>';
+  openModal('📨 Пригласить друга', body, 'Отправить', function(){ doInviteToGame(gid); });
 }
 
 async function doInviteToGame(gid){
@@ -1770,7 +1759,7 @@ async function doInviteToGame(gid){
   if (!sel) return;
   var fid = parseInt(sel.value);
   if (!fid) return;
-  closeInviteModal();
+  closeModal();
   try {
     var r = await api('POST', '/api/backgammon/'+gid+'/invite/'+userId, {friend_id: fid});
     if (r.ok && r.data.success) showToast('✅ Приглашение отправлено!');
