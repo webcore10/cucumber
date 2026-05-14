@@ -321,6 +321,26 @@ async def init_db():
             await db.execute("ALTER TABLE businesses ADD COLUMN created_at TEXT")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE backgammon_games ADD COLUMN invited_id INTEGER")
+        except Exception:
+            pass
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS friends (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            friend_id  INTEGER NOT NULL,
+            status     TEXT DEFAULT 'pending',
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, friend_id)
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS news_posts (
+            post_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_id  INTEGER NOT NULL,
+            text       TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )""")
         await db.commit()
 
 
@@ -3778,119 +3798,121 @@ async def _wa_clan(request):
                                for m in members]})
 
 
-# ── Нарды: игровая логика ─────────────────────────────────────────────────────
+# ── Длинные нарды: игровая логика ────────────────────────────────────────────
 
 import copy, json as _json_mod
 
 def _bg_new_state():
+    """Длинные нарды: все 15 шашек каждого игрока стартуют на голове."""
     board = [0]*24
-    board[23]=2; board[12]=5; board[7]=3; board[5]=5
-    board[0]=-2; board[11]=-5; board[16]=-3; board[18]=-5
-    d1,d2 = random.randint(1,6), random.randint(1,6)
-    while d1==d2:
-        d1,d2 = random.randint(1,6), random.randint(1,6)
-    first = 1 if d1>d2 else 2
-    return {"board":board,"bar":[0,0],"off":[0,0],
-            "dice":[d1,d2],"moves_left":[d1,d2],"current":first}
+    board[23] = 15   # Игрок 1: голова на индексе 23
+    board[11] = -15  # Игрок 2: голова на индексе 11
+    d1, d2 = random.randint(1,6), random.randint(1,6)
+    while d1 == d2:
+        d1, d2 = random.randint(1,6), random.randint(1,6)
+    first = 1 if d1 > d2 else 2
+    return {"board": board, "bar": [0,0], "off": [0,0],
+            "dice": [d1,d2], "moves_left": [d1,d2],
+            "current": first, "head_used": 0, "turn_count": 0}
 
-def _bg_all_home(st, p):
-    b=st["board"]; bar=st["bar"]
-    if bar[p-1]>0: return False
-    if p==1: return all(v<=0 for v in b[6:])
-    return all(v>=0 for v in b[:18])
-
-def _bg_bear_ok(st, p, idx, die):
-    b=st["board"]
-    if not _bg_all_home(st,p): return False
-    if p==1:
-        if idx-die<0: return all(b[i]<=0 for i in range(idx+1,6))
-    else:
-        if idx+die>23: return all(b[i]>=0 for i in range(18,idx))
-    return False
+def _bg_p2_dist(idx):
+    """Расстояние, пройдённое игроком 2 от своей головы (индекс 11). Диапазон 0–23."""
+    return (11 - idx + 24) % 24
 
 def _bg_valid(st):
-    board=st["board"]; bar=st["bar"]; ml=st["moves_left"]; p=st["current"]
-    ud=list(set(ml)); res=[]
-    if bar[p-1]>0:
-        for d in ud:
-            tgt=(24-d) if p==1 else (d-1)
-            if 0<=tgt<=23:
-                tv=board[tgt]
-                if (p==1 and tv>=-1) or (p==2 and tv<=1):
-                    res.append((-1,d))
-        return res
-    for i in range(24):
-        v=board[i]
-        if not((p==1 and v>0) or (p==2 and v<0)): continue
-        for d in ud:
-            if p==1:
-                t=i-d
-                if t>=0 and board[t]>=-1: res.append((i,d))
-                elif t<0 and _bg_bear_ok(st,p,i,d): res.append((i,d))
-            else:
-                t=i+d
-                if t<=23 and board[t]<=1: res.append((i,d))
-                elif t>23 and _bg_bear_ok(st,p,i,d): res.append((i,d))
-    return list(set(res))
+    board = st["board"]
+    ml = st["moves_left"]
+    p = st["current"]
+    head_used = st.get("head_used", 0)
+    turn_count = st.get("turn_count", 0)
+    dice = st.get("dice", [1,1])
+    is_doubles = len(dice) == 2 and dice[0] == dice[1]
+    # Правило головы: за ход можно снять с головы только 1 шашку,
+    # кроме первого хода с дублями — тогда 2.
+    max_from_head = 2 if (turn_count < 2 and is_doubles) else 1
+    if not ml: return []
+    head_idx = 23 if p == 1 else 11
+    res = set()
+    ud = set(ml)
+    if p == 1:
+        all_home = all(board[i] <= 0 for i in range(6, 24))
+        for die in ud:
+            for idx in range(24):
+                if board[idx] <= 0: continue
+                if idx == head_idx and head_used >= max_from_head: continue
+                tgt = idx - die
+                if tgt >= 0:
+                    if board[tgt] >= 0: res.add((idx, die))  # пустая или своя
+                elif all_home:
+                    # снятие: точное или большей костью (если нет шашек на более высоких точках)
+                    if die == idx + 1: res.add((idx, die))
+                    elif die > idx + 1:
+                        if not any(board[i] > 0 for i in range(idx+1, 6)):
+                            res.add((idx, die))
+    else:
+        all_home = all(board[i] >= 0 for i in range(24) if not (12 <= i <= 17))
+        for die in ud:
+            for idx in range(24):
+                if board[idx] >= 0: continue
+                if idx == head_idx and head_used >= max_from_head: continue
+                dist = _bg_p2_dist(idx)
+                new_dist = dist + die
+                if new_dist >= 24:
+                    if all_home:
+                        needed = 24 - dist
+                        if die == needed: res.add((idx, die))
+                        elif die > needed:
+                            if not any(board[i] < 0 for i in range(idx+1, 18)):
+                                res.add((idx, die))
+                else:
+                    new_idx = (11 - new_dist + 24) % 24
+                    if board[new_idx] <= 0: res.add((idx, die))
+    return list(res)
 
 def _bg_move(st, frm, die):
-    st=copy.deepcopy(st)
-    b=st["board"]; bar=st["bar"]; off=st["off"]; p=st["current"]
-    if frm==-1:
-        if bar[p-1]<=0: return None
-        tgt=(24-die) if p==1 else (die-1)
-        if not(0<=tgt<=23): return None
-        tv=b[tgt]
-        if p==1:
-            if tv<-1: return None
-            if tv==-1: b[tgt]=1; bar[1]+=1
-            else: b[tgt]+=1
+    st = copy.deepcopy(st)
+    b = st["board"]; off = st["off"]; p = st["current"]
+    head_idx = 23 if p == 1 else 11
+    if die not in st["moves_left"]: return None
+    if p == 1:
+        if b[frm] <= 0: return None
+        tgt = frm - die
+        if tgt >= 0:
+            if b[tgt] < 0: return None  # в длинных нардах нельзя бить
+            b[frm] -= 1; b[tgt] += 1
         else:
-            if tv>1: return None
-            if tv==1: b[tgt]=-1; bar[0]+=1
-            else: b[tgt]-=1
-        bar[p-1]-=1
+            if any(b[i] > 0 for i in range(6, 24)): return None
+            b[frm] -= 1; off[0] += 1
     else:
-        if p==1:
-            if b[frm]<=0: return None
-            tgt=frm-die
-            if tgt<0:
-                if not _bg_bear_ok(st,p,frm,die): return None
-                b[frm]-=1; off[0]+=1
-            else:
-                tv=b[tgt]
-                if tv<-1: return None
-                if tv==-1: b[tgt]=1; bar[1]+=1
-                else: b[tgt]+=1
-                b[frm]-=1
+        if b[frm] >= 0: return None
+        dist = _bg_p2_dist(frm)
+        new_dist = dist + die
+        if new_dist >= 24:
+            if any(b[i] < 0 for i in range(24) if not (12 <= i <= 17)): return None
+            b[frm] += 1; off[1] += 1
         else:
-            if b[frm]>=0: return None
-            tgt=frm+die
-            if tgt>23:
-                if not _bg_bear_ok(st,p,frm,die): return None
-                b[frm]+=1; off[1]+=1
-            else:
-                tv=b[tgt]
-                if tv>1: return None
-                if tv==1: b[tgt]=-1; bar[0]+=1
-                else: b[tgt]-=1
-                b[frm]+=1
-    ml=list(st["moves_left"])
-    if die in ml: ml.remove(die)
-    st["moves_left"]=ml
-    if off[0]>=15: st["winner"]=1
-    elif off[1]>=15: st["winner"]=2
+            tgt = (11 - new_dist + 24) % 24
+            if b[tgt] > 0: return None  # нельзя бить
+            b[frm] += 1; b[tgt] -= 1
+    if frm == head_idx:
+        st["head_used"] = st.get("head_used", 0) + 1
+    ml = list(st["moves_left"]); ml.remove(die); st["moves_left"] = ml
+    if off[0] >= 15: st["winner"] = 1
+    elif off[1] >= 15: st["winner"] = 2
     if not ml and "winner" not in st:
-        np_=3-p
-        d1,d2=random.randint(1,6),random.randint(1,6)
-        st["dice"]=[d1,d2]
-        st["moves_left"]=[d1,d2,d1,d2] if d1==d2 else [d1,d2]
-        st["current"]=np_
+        np_ = 3 - p
+        d1, d2 = random.randint(1,6), random.randint(1,6)
+        st["dice"] = [d1, d2]
+        st["moves_left"] = [d1,d2,d1,d2] if d1==d2 else [d1,d2]
+        st["current"] = np_
+        st["head_used"] = 0
+        st["turn_count"] = st.get("turn_count", 0) + 1
         if not _bg_valid(st):
-            d1,d2=random.randint(1,6),random.randint(1,6)
-            st["dice"]=[d1,d2]
-            st["moves_left"]=[d1,d2,d1,d2] if d1==d2 else [d1,d2]
-            st["current"]=p
+            # Нет ходов у следующего — перекидываем обратно
+            d1, d2 = random.randint(1,6), random.randint(1,6)
+            st["dice"] = [d1, d2]
+            st["moves_left"] = [d1,d2,d1,d2] if d1==d2 else [d1,d2]
+            st["current"] = p
     return st
 
 # ── Нарды: API ────────────────────────────────────────────────────────────────
@@ -3911,22 +3933,39 @@ async def _wa_bg_lobby(request):
 
 async def _wa_bg_create(request):
     try:
-        uid=int(request.match_info["user_id"])
-        body=await request.json(); bet=max(0,int(body.get("bet",0)))
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        bet = max(0, int(body.get("bet", 0)))
+        invite_id = body.get("invite_id")
+        if invite_id: invite_id = int(invite_id)
     except: return _json({"error":"invalid"},400)
     async with aiosqlite.connect(DB_NAME) as db:
-        cur=await db.execute("SELECT size FROM users WHERE user_id=?",(uid,))
-        row=await cur.fetchone()
+        cur = await db.execute("SELECT size, name FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
         if not row: return _json({"error":"not found"},404)
-        if bet>0 and (row[0] or 0)<bet: return _json({"error":"insufficient"},400)
-        cur2=await db.execute("SELECT game_id FROM backgammon_games WHERE player1_id=? AND status IN ('waiting','active')",(uid,))
+        if bet > 0 and (row[0] or 0) < bet: return _json({"error":"insufficient"},400)
+        cur2 = await db.execute("SELECT game_id FROM backgammon_games WHERE player1_id=? AND status IN ('waiting','active')",(uid,))
         if await cur2.fetchone(): return _json({"error":"already_in_game"},400)
-        if bet>0:
-            await db.execute("UPDATE users SET size=size-? WHERE user_id=?",(bet,uid))
-        cur3=await db.execute("INSERT INTO backgammon_games (player1_id,bet,status,created_at) VALUES (?,?,?,?)",
-                              (uid,bet,'waiting',now_msk().isoformat()))
-        gid=cur3.lastrowid
+        if bet > 0:
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (bet, uid))
+        cur3 = await db.execute("INSERT INTO backgammon_games (player1_id,bet,status,created_at) VALUES (?,?,?,?)",
+                                (uid, bet, 'waiting', now_msk().isoformat()))
+        gid = cur3.lastrowid
         await db.commit()
+        inviter_name = row[1] or "Игрок"
+    if invite_id and WEBAPP_URL:
+        try:
+            await bot.send_message(
+                invite_id,
+                f"🎲 <b>{inviter_name}</b> приглашает тебя сыграть в длинные нарды!\n"
+                f"Ставка: {bet} см · Игра #{gid}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="🎲 Принять вызов",
+                                        web_app=WebAppInfo(url=f"{WEBAPP_URL}?bg={gid}"))
+                ]])
+            )
+        except Exception:
+            pass
     return _json({"success":True,"game_id":gid})
 
 async def _wa_bg_join(request):
@@ -4031,6 +4070,113 @@ async def _wa_bg_resign(request):
             if winner_id and bet>0:
                 await db.execute("UPDATE users SET size=size+? WHERE user_id=?",(bet*2,winner_id))
             await db.execute("UPDATE backgammon_games SET status='finished',winner_id=? WHERE game_id=?",(winner_id,gid))
+        await db.commit()
+    return _json({"success":True})
+
+# ── Друзья: API ───────────────────────────────────────────────────────────────
+
+async def _wa_friends_list(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("""
+            SELECT u.user_id, u.name, u.size FROM friends f
+            JOIN users u ON u.user_id = f.friend_id
+            WHERE f.user_id=? AND f.status='accepted'
+            UNION
+            SELECT u.user_id, u.name, u.size FROM friends f
+            JOIN users u ON u.user_id = f.user_id
+            WHERE f.friend_id=? AND f.status='accepted'
+        """, (uid, uid))
+        friends = [{"user_id":r[0],"name":r[1] or "Игрок","size":r[2] or 0} for r in await cur.fetchall()]
+        cur2 = await db.execute("""
+            SELECT u.user_id, u.name, u.size FROM friends f
+            JOIN users u ON u.user_id = f.user_id
+            WHERE f.friend_id=? AND f.status='pending'
+        """, (uid,))
+        incoming = [{"user_id":r[0],"name":r[1] or "Игрок","size":r[2] or 0} for r in await cur2.fetchall()]
+        cur3 = await db.execute("""
+            SELECT u.user_id, u.name, u.size FROM friends f
+            JOIN users u ON u.user_id = f.friend_id
+            WHERE f.user_id=? AND f.status='pending'
+        """, (uid,))
+        outgoing = [{"user_id":r[0],"name":r[1] or "Игрок","size":r[2] or 0} for r in await cur3.fetchall()]
+    return _json({"friends":friends,"incoming":incoming,"outgoing":outgoing})
+
+async def _wa_friends_add(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); fid = int(body.get("friend_id",0))
+    except: return _json({"error":"invalid"},400)
+    if fid == uid: return _json({"error":"self"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT user_id, name FROM users WHERE user_id=?", (fid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        cur2 = await db.execute(
+            "SELECT status FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
+            (uid, fid, fid, uid))
+        ex = await cur2.fetchone()
+        if ex:
+            return _json({"error":"already_friends" if ex[0]=='accepted' else "request_pending"},400)
+        await db.execute(
+            "INSERT OR IGNORE INTO friends (user_id,friend_id,status,created_at) VALUES (?,?,'pending',?)",
+            (uid, fid, now_msk().isoformat()))
+        await db.commit()
+        cur3 = await db.execute("SELECT name FROM users WHERE user_id=?", (uid,))
+        r = await cur3.fetchone(); sender_name = r[0] if r else "Игрок"
+    try:
+        await bot.send_message(fid,
+            f"👥 <b>{sender_name}</b> хочет добавить тебя в друзья!\n"
+            f"Открой мини-приложение → Ещё → Друзья, чтобы принять.")
+    except Exception:
+        pass
+    return _json({"success":True})
+
+async def _wa_friends_accept(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        fid = int(request.match_info["friend_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT id FROM friends WHERE user_id=? AND friend_id=? AND status='pending'", (fid, uid))
+        if not await cur.fetchone(): return _json({"error":"no_request"},404)
+        await db.execute("UPDATE friends SET status='accepted' WHERE user_id=? AND friend_id=?", (fid, uid))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_friends_remove(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        fid = int(request.match_info["friend_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "DELETE FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
+            (uid, fid, fid, uid))
+        await db.commit()
+    return _json({"success":True})
+
+# ── Новости: API ──────────────────────────────────────────────────────────────
+
+async def _wa_news_get(request):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT post_id, text, created_at FROM news_posts ORDER BY post_id DESC LIMIT 15")
+        rows = await cur.fetchall()
+    return _json([{"post_id":r[0],"text":r[1],"created_at":r[2]} for r in rows])
+
+async def _wa_news_post(request):
+    try:
+        body = await request.json()
+        uid = int(body.get("user_id",0)); text = str(body.get("text","")).strip()[:500]
+    except: return _json({"error":"invalid"},400)
+    if uid != ADMIN_ID: return _json({"error":"forbidden"},403)
+    if not text: return _json({"error":"empty"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("INSERT INTO news_posts (author_id,text,created_at) VALUES (?,?,?)",
+                         (uid, text, now_msk().isoformat()))
         await db.commit()
     return _json({"success":True})
 
@@ -4360,6 +4506,12 @@ async def start_webapp():
     app.router.add_get("/api/backgammon/state/{game_id}/{user_id}", _wa_bg_state)
     app.router.add_post("/api/backgammon/move/{game_id}/{user_id}", _wa_bg_move)
     app.router.add_post("/api/backgammon/resign/{game_id}/{user_id}", _wa_bg_resign)
+    app.router.add_get("/api/news", _wa_news_get)
+    app.router.add_post("/api/news", _wa_news_post)
+    app.router.add_get("/api/friends/{user_id}", _wa_friends_list)
+    app.router.add_post("/api/friends/{user_id}/add", _wa_friends_add)
+    app.router.add_post("/api/friends/{user_id}/accept/{friend_id}", _wa_friends_accept)
+    app.router.add_post("/api/friends/{user_id}/remove/{friend_id}", _wa_friends_remove)
     app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
     runner = aio_web.AppRunner(app)
     await runner.setup()

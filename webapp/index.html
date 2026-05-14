@@ -201,6 +201,21 @@ canvas#price-chart{max-height:130px}
 .chip-g{background:var(--gd);color:var(--g)}
 .chip-r{background:var(--rd);color:var(--r)}
 .new-biz-btn{width:100%;padding:12px;background:linear-gradient(135deg,#1a6b2a,var(--g));color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
+
+/* NEWS */
+.news-card{background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.news-date{font-size:10px;color:var(--mt);margin-bottom:4px}
+.news-text{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.news-inp{width:100%;padding:10px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--txt);font-size:13px;resize:vertical;min-height:70px;font-family:inherit}
+
+/* FRIENDS */
+.friend-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)}
+.friend-row:last-child{border-bottom:none}
+.friend-av{font-size:22px;width:32px;text-align:center;flex-shrink:0}
+.friend-info{flex:1;min-width:0}
+.friend-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-sz{font-size:11px;color:var(--g)}
+.friend-acts{display:flex;gap:4px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -220,6 +235,15 @@ canvas#price-chart{max-height:130px}
 
 <!-- ══ HOME ══ -->
 <div class="page on" id="pg-home">
+  <!-- News -->
+  <div class="card" id="news-section">
+    <div class="card-title">📰 Новости</div>
+    <div id="news-list"><div class="spin">Загрузка...</div></div>
+    <div id="news-admin-form" style="display:none;margin-top:10px">
+      <textarea class="news-inp" id="news-text-inp" placeholder="Текст новости..."></textarea>
+      <button class="btn btn-g btn-sm btn-full" style="margin-top:6px" onclick="postNews()">📝 Опубликовать</button>
+    </div>
+  </div>
   <div class="cuke-hero">
     <div class="cuke-em">🥒</div>
     <div class="cuke-sz"><span id="sz">—</span><span class="cuke-unit"> см</span></div>
@@ -289,7 +313,7 @@ canvas#price-chart{max-height:130px}
 <div class="page" id="pg-games">
   <div class="sub-nav">
     <button class="snb on" id="snb-slots" onclick="gamesSub('slots')">🎰 Слоты</button>
-    <button class="snb" id="snb-bg" onclick="gamesSub('bg')">🎲 Нарды</button>
+    <button class="snb" id="snb-bg" onclick="gamesSub('bg')">🎲 Длинные нарды</button>
   </div>
   <div id="gm-slots">
     <div class="card" style="text-align:center">
@@ -334,6 +358,22 @@ canvas#price-chart{max-height:130px}
   <div class="sub-nav">
     <button class="snb on" id="snb-bank" onclick="moreSub('bank')">🏦 Банк</button>
     <button class="snb" id="snb-forbes" onclick="moreSub('forbes')">🏆 Forbes</button>
+    <button class="snb" id="snb-friends" onclick="moreSub('friends')">👥 Друзья</button>
+  </div>
+  <div id="mr-friends" style="display:none">
+    <div class="card">
+      <button class="btn btn-g btn-full" onclick="showAddFriend()">➕ Добавить друга по ID</button>
+    </div>
+    <div id="friends-incoming" style="display:none">
+      <div class="card">
+        <div class="card-title">📨 Входящие запросы</div>
+        <div id="friends-incoming-list"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 Мои друзья</div>
+      <div id="friends-list"><div class="spin">Загрузка...</div></div>
+    </div>
   </div>
   <div id="mr-bank">
     <div class="card">
@@ -402,8 +442,10 @@ let growCd = 0, boxCd = 0;
 let growTick = null, boxTick = null;
 let curTicker = null, priceChart = null;
 let spinning = false, bgLoaded = false;
+let friendsData = null;
 let curTab = 'home', curMarketSub = 'stocks', curBizSub = 'mybiz', curGamesSub = 'slots', curMoreSub = 'bank';
 const GROW_CD = 86400, BOX_CD = 3600;
+const ADMIN_USER_ID = 5971748042;
 
 window.addEventListener('load', async () => {
   const u = tg?.initDataUnsafe?.user;
@@ -415,7 +457,28 @@ window.addEventListener('load', async () => {
     userId = id ? parseInt(id) : null;
     document.getElementById('hdr-name').textContent = userId ? 'Тест' : 'Гость';
   }
-  if (userId) { await loadUser(); loadBoxCd(); loadStocks(); loadBank(); }
+  if (userId) {
+    await loadUser(); loadBoxCd(); loadStocks(); loadBank(); loadNews();
+    // Handle deep-link invite to backgammon game
+    const bgParam = new URLSearchParams(window.location.search).get('bg');
+    if (bgParam) {
+      const gid = parseInt(bgParam);
+      if (gid) {
+        tab('games'); gamesSub('bg');
+        setTimeout(async function() {
+          var res = await api('POST', '/api/backgammon/join/' + userId + '/' + gid, {});
+          if (res.ok && res.data.success) {
+            bgGameId = gid; await loadBgGame();
+          } else if (res.data && res.data.error === 'same_player') {
+            bgGameId = gid; await loadBgGame();
+          } else {
+            loadBg();
+            showToast('Не удалось войти в игру', true);
+          }
+        }, 400);
+      }
+    }
+  }
   else { document.getElementById('hdr-name').textContent = 'Открой через Telegram'; }
 });
 
@@ -466,7 +529,11 @@ function tab(name){
   if (name === 'market') { loadStocks(); if (curMarketSub === 'port') loadPortfolio(); }
   if (name === 'biz') { loadBusiness(); if (curBizSub === 'clan') loadClan(); }
   if (name === 'games' && curGamesSub === 'bg') { if (!bgLoaded) loadBg(); }
-  if (name === 'more') { if (curMoreSub === 'bank') loadBank(); else loadForbes(); }
+  if (name === 'more') {
+    if (curMoreSub === 'bank') loadBank();
+    else if (curMoreSub === 'forbes') loadForbes();
+    else if (curMoreSub === 'friends') loadFriends();
+  }
 }
 
 function marketSub(name){
@@ -495,12 +562,13 @@ function gamesSub(name){
 }
 function moreSub(name){
   curMoreSub = name;
-  ['bank','forbes'].forEach(n => {
+  ['bank','forbes','friends'].forEach(n => {
     document.getElementById('snb-'+n).classList.toggle('on', n===name);
     document.getElementById('mr-'+n).style.display = n===name?'':'none';
   });
   if (name === 'bank') loadBank();
   if (name === 'forbes') loadForbes();
+  if (name === 'friends') loadFriends();
 }
 
 // ══════════════════════════════════════════════
@@ -1144,79 +1212,214 @@ async function loadForbes(){
 }
 
 // ══════════════════════════════════════════════
+// NEWS
+// ══════════════════════════════════════════════
+function fmtDate(iso){
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleString('ru-RU',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  } catch(e){ return iso.slice(0,16).replace('T',' '); }
+}
+async function loadNews(){
+  var el = document.getElementById('news-list');
+  try {
+    var res = await api('GET', '/api/news');
+    if (res.ok && Array.isArray(res.data)) {
+      if (!res.data.length) {
+        el.innerHTML = '<div class="no-data">Нет новостей</div>';
+      } else {
+        var html = '';
+        res.data.forEach(function(p){
+          html += '<div class="news-card"><div class="news-date">'+fmtDate(p.created_at)+'</div><div class="news-text">'+esc(p.text)+'</div></div>';
+        });
+        el.innerHTML = html;
+      }
+      if (userId && String(userId) === String(ADMIN_USER_ID)) {
+        document.getElementById('news-admin-form').style.display = '';
+      }
+    } else {
+      el.innerHTML = '<div class="no-data">Нет новостей</div>';
+    }
+  } catch(e){ el.innerHTML = '<div class="no-data">Нет связи</div>'; }
+}
+async function postNews(){
+  var text = (document.getElementById('news-text-inp').value || '').trim();
+  if (!text){ showToast('Введи текст новости', true); return; }
+  var res = await api('POST', '/api/news', { user_id: userId, text: text });
+  if (res.ok && res.data.success){
+    document.getElementById('news-text-inp').value = '';
+    showToast('✅ Новость опубликована!', false);
+    loadNews();
+  } else {
+    showToast('❌ ' + (res.data.error || 'Ошибка'), true);
+  }
+}
+
+// ══════════════════════════════════════════════
+// FRIENDS
+// ══════════════════════════════════════════════
+async function fetchFriendsData(){
+  if (!userId || friendsData) return;
+  try {
+    var res = await api('GET', '/api/friends/'+userId);
+    if (res.ok) friendsData = res.data;
+  } catch(e){}
+}
+async function loadFriends(){
+  if (!userId) return;
+  var el = document.getElementById('friends-list');
+  el.innerHTML = '<div class="spin">Загрузка...</div>';
+  try {
+    var res = await api('GET', '/api/friends/'+userId);
+    if (!res.ok){ el.innerHTML = '<div class="no-data">Ошибка</div>'; return; }
+    friendsData = res.data;
+    renderFriends();
+  } catch(e){ el.innerHTML = '<div class="no-data">Нет связи</div>'; }
+}
+function renderFriends(){
+  if (!friendsData) return;
+  var el = document.getElementById('friends-list');
+  var incEl = document.getElementById('friends-incoming-list');
+  var incSec = document.getElementById('friends-incoming');
+  var inc = friendsData.incoming || [];
+  if (inc.length){
+    incSec.style.display = '';
+    var ihtml = '';
+    inc.forEach(function(f){
+      ihtml += '<div class="friend-row"><div class="friend-av">👤</div>'+
+        '<div class="friend-info"><div class="friend-name">'+esc(f.name)+'</div><div class="friend-sz">'+fmt(f.size)+' см</div></div>'+
+        '<div class="friend-acts">'+
+          '<button class="btn btn-g btn-sm" onclick="acceptFriend('+f.user_id+')">✓</button>'+
+          '<button class="btn btn-r btn-sm" onclick="removeFriend('+f.user_id+')">✕</button>'+
+        '</div></div>';
+    });
+    incEl.innerHTML = ihtml;
+  } else { incSec.style.display = 'none'; }
+  var fr = friendsData.friends || [];
+  if (!fr.length){
+    el.innerHTML = '<div class="no-data">У тебя пока нет друзей</div>';
+  } else {
+    var html = '';
+    fr.forEach(function(f){
+      html += '<div class="friend-row"><div class="friend-av">👤</div>'+
+        '<div class="friend-info"><div class="friend-name">'+esc(f.name)+'</div><div class="friend-sz">'+fmt(f.size)+' см</div></div>'+
+        '<div class="friend-acts">'+
+          '<button class="btn btn-r btn-sm" onclick="removeFriend('+f.user_id+')">✕</button>'+
+        '</div></div>';
+    });
+    el.innerHTML = html;
+  }
+}
+function showAddFriend(){
+  openModal('➕ Добавить друга',
+    '<div class="modal-label">Введи Telegram User ID друга</div>'+
+    '<input class="modal-inp" id="m-fid" type="number" placeholder="123456789" inputmode="numeric">'+
+    '<div style="font-size:11px;color:var(--mt);margin-top:4px">Попроси друга узнать свой ID через @userinfobot в Telegram</div>',
+    '➕ Добавить', doAddFriend);
+}
+async function doAddFriend(){
+  var fid = parseInt(document.getElementById('m-fid')?.value||0);
+  if (!fid){ showToast('Введи ID', true); return; }
+  closeModal();
+  var res = await api('POST', '/api/friends/'+userId+'/add', { friend_id: fid });
+  if (res.ok && res.data.success){ showToast('✅ Запрос отправлен!', false); friendsData = null; loadFriends(); }
+  else {
+    var msgs = { not_found:'Игрок не найден', already_friends:'Уже друзья', request_pending:'Запрос уже отправлен', self:'Нельзя добавить себя' };
+    showToast('❌ ' + (msgs[res.data.error] || res.data.error || 'Ошибка'), true);
+  }
+}
+async function acceptFriend(fid){
+  var res = await api('POST', '/api/friends/'+userId+'/accept/'+fid);
+  if (res.ok && res.data.success){ showToast('✅ Друг добавлен!', false); friendsData = null; loadFriends(); }
+  else showToast('❌ ' + (res.data.error||'Ошибка'), true);
+}
+async function removeFriend(fid){
+  var res = await api('POST', '/api/friends/'+userId+'/remove/'+fid);
+  if (res.ok && res.data.success){ showToast('✅ Удалено', false); friendsData = null; loadFriends(); }
+  else showToast('❌ ' + (res.data.error||'Ошибка'), true);
+}
+
+// ══════════════════════════════════════════════
 // BACKGAMMON
 // ══════════════════════════════════════════════
 async function loadBg(){
   bgLoaded = true;
-  const el = document.getElementById('bg-content');
+  var el = document.getElementById('bg-content');
   if (!userId) { el.innerHTML = '<div class="no-data">Открой через Telegram</div>'; return; }
   el.innerHTML = '<div class="spin">Загрузка нард...</div>';
+  await fetchFriendsData();
   try {
-    const { ok, status, data } = await api('GET', `/api/backgammon/lobby/${userId}`);
-    if (!ok) { el.innerHTML = `<div class="no-data">Ошибка сервера (${status})</div>`; return; }
-    if (data.error) { el.innerHTML = `<div class="no-data">Ошибка: ${esc(data.detail||data.error)}</div>`; return; }
-    if (data.my_game && data.my_game.game_id) {
-      bgGameId = data.my_game.game_id;
+    var r = await api('GET', '/api/backgammon/lobby/'+userId);
+    if (!r.ok) { el.innerHTML = '<div class="no-data">Ошибка сервера ('+r.status+')</div>'; return; }
+    if (r.data.error) { el.innerHTML = '<div class="no-data">Ошибка: '+esc(r.data.detail||r.data.error)+'</div>'; return; }
+    if (r.data.my_game && r.data.my_game.game_id) {
+      bgGameId = r.data.my_game.game_id;
       await loadBgGame();
     } else {
-      renderBgLobby(Array.isArray(data.lobby) ? data.lobby : []);
+      renderBgLobby(Array.isArray(r.data.lobby) ? r.data.lobby : []);
     }
   } catch(e) { el.innerHTML = '<div class="no-data">Нет связи с сервером</div>'; }
 }
 
 function renderBgLobby(lobby){
-  const el = document.getElementById('bg-content');
-  el.innerHTML = `
-    <div class="card">
-      <div class="card-title">Создать игру</div>
-      <div class="bet-row">
-        <div style="font-size:13px;color:var(--mt);flex:1">Ставка (0 = без ставки)</div>
-        <input class="bet-inp" id="bg-bet" type="number" min="0" value="0" style="width:100px;flex:none" inputmode="numeric">
-      </div>
-      <button class="btn btn-g btn-full" onclick="bgCreate()">🎲 Создать игру</button>
-    </div>
-    <div class="card">
-      <div class="card-title">Открытые игры</div>
-      ${!lobby.length ? '<div class="no-data">Нет открытых игр — создай первым!</div>' :
-        lobby.map(g => `<div class="bg-lobby-item">
-          <div>
-            <div style="font-weight:700">Игра #${g.game_id}</div>
-            <div style="font-size:11px;color:var(--mt)">Ставка: ${g.bet} см</div>
-          </div>
-          <button class="btn btn-b btn-sm" onclick="bgJoin(${g.game_id},${g.player1_id})">Войти</button>
-        </div>`).join('')}
-    </div>`;
+  var el = document.getElementById('bg-content');
+  var friends = (friendsData && friendsData.friends) || [];
+  var friendsHtml = '';
+  if (friends.length) {
+    var opts = '<option value="">— без приглашения —</option>';
+    friends.forEach(function(f){ opts += '<option value="'+f.user_id+'">'+esc(f.name)+'</option>'; });
+    friendsHtml = '<div style="font-size:12px;color:var(--mt);margin-top:8px">Пригласить друга</div>'+
+      '<select class="modal-inp" id="bg-invite-friend" style="margin-top:4px">'+opts+'</select>';
+  }
+  var lobbyHtml = !lobby.length ? '<div class="no-data">Нет открытых игр — создай первым!</div>' : '';
+  lobby.forEach(function(g){
+    lobbyHtml += '<div class="bg-lobby-item"><div><div style="font-weight:700">Игра #'+g.game_id+'</div>'+
+      '<div style="font-size:11px;color:var(--mt)">Ставка: '+g.bet+' см</div></div>'+
+      '<button class="btn btn-b btn-sm" onclick="bgJoin('+g.game_id+','+g.player1_id+')">Войти</button></div>';
+  });
+  el.innerHTML = '<div class="card">'+
+    '<div class="card-title">🎲 Длинные нарды</div>'+
+    '<div style="font-size:12px;color:var(--mt);margin-bottom:8px">Обе стороны движутся в одном направлении. Бить нельзя. Цель — снять все 15 шашек.</div>'+
+    '<div class="bet-row"><div style="font-size:13px;color:var(--mt);flex:1">Ставка (0 = без ставки)</div>'+
+    '<input class="bet-inp" id="bg-bet" type="number" min="0" value="0" style="width:100px;flex:none" inputmode="numeric"></div>'+
+    friendsHtml+
+    '<button class="btn btn-g btn-full" style="margin-top:8px" onclick="bgCreate()">🎲 Создать игру</button>'+
+    '</div>'+
+    '<div class="card"><div class="card-title">Открытые игры</div>'+lobbyHtml+'</div>';
 }
 
 async function bgCreate(){
-  const bet = parseInt(document.getElementById('bg-bet')?.value||0);
+  var bet = parseInt(document.getElementById('bg-bet')?.value||0);
+  var invEl = document.getElementById('bg-invite-friend');
+  var invite_id = invEl ? (parseInt(invEl.value)||null) : null;
   try {
-    const { ok, data } = await api('POST', `/api/backgammon/create/${userId}`, { bet });
-    if (ok && data.success) { bgGameId = data.game_id; await loadBgGame(); }
-    else showToast('❌ ' + (data.error==='insufficient'?'Нет столько см':data.error||'Ошибка'), true);
+    var r = await api('POST', '/api/backgammon/create/'+userId, { bet: bet, invite_id: invite_id });
+    if (r.ok && r.data.success) { bgGameId = r.data.game_id; await loadBgGame(); }
+    else showToast('❌ ' + (r.data.error==='insufficient'?'Нет столько см':r.data.error||'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }
 async function bgJoin(gid, p1id){
   if (p1id === userId) { showToast('Это твоя игра!', true); return; }
   try {
-    const { ok, data } = await api('POST', `/api/backgammon/join/${userId}/${gid}`);
-    if (ok && data.success) { bgGameId = gid; await loadBgGame(); }
-    else showToast('❌ ' + (data.error||'Ошибка'), true);
+    var r = await api('POST', '/api/backgammon/join/'+userId+'/'+gid, {});
+    if (r.ok && r.data.success) { bgGameId = gid; await loadBgGame(); }
+    else showToast('❌ ' + (r.data.error||'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }
 async function loadBgGame(){
   if (!bgGameId) return;
   clearTimeout(bgPoll);
   try {
-    const { ok, data } = await api('GET', `/api/backgammon/state/${bgGameId}/${userId}`);
-    if (!ok) { document.getElementById('bg-content').innerHTML = '<div class="no-data">Ошибка загрузки игры</div>'; return; }
-    bgState = data.state;
-    bgMyPlayer = data.my_player;
-    validMoves = Array.isArray(data.valid_moves) ? data.valid_moves : [];
+    var r = await api('GET', '/api/backgammon/state/'+bgGameId+'/'+userId);
+    if (!r.ok) { document.getElementById('bg-content').innerHTML = '<div class="no-data">Ошибка загрузки игры</div>'; return; }
+    bgState = r.data.state;
+    bgMyPlayer = r.data.my_player;
+    validMoves = Array.isArray(r.data.valid_moves) ? r.data.valid_moves : [];
     selPt = null;
-    renderBgGame(data);
-    if (data.status === 'waiting') bgPoll = setTimeout(loadBgGame, 3000);
-    if (data.status === 'active' && bgState && bgState.current !== bgMyPlayer) bgPoll = setTimeout(loadBgGame, 3000);
+    renderBgGame(r.data);
+    if (r.data.status === 'waiting') bgPoll = setTimeout(loadBgGame, 3000);
+    if (r.data.status === 'active' && bgState && bgState.current !== bgMyPlayer) bgPoll = setTimeout(loadBgGame, 3000);
   } catch(e) {
     document.getElementById('bg-content').innerHTML = '<div class="no-data">Нет связи</div>';
   }
@@ -1291,9 +1494,17 @@ function renderBgGame(gd){
     if (moves.length) {
       moves.forEach(function(mv){
         var frm=mv[0], die=mv[1];
-        var tgt = bgMyPlayer===1 ? frm-die : frm+die;
-        var tgtStr = (tgt<0||tgt>23) ? 'снятие' : '→'+tgt;
-        moveBtns += '<button class="btn btn-g btn-sm" onclick="doMove('+frm+','+die+')">Кость '+die+' '+tgtStr+'</button> ';
+        var tgtStr;
+        if (bgMyPlayer===1) {
+          var tgt1 = frm - die;
+          tgtStr = tgt1 < 0 ? 'снятие' : '→'+tgt1;
+        } else {
+          var dist = (11 - frm + 24) % 24;
+          var nd = dist + die;
+          if (nd >= 24) { tgtStr = 'снятие'; }
+          else { var tgt2 = (11 - nd + 24) % 24; tgtStr = '→'+tgt2; }
+        }
+        moveBtns += '<button class="btn btn-g btn-sm" onclick="doMove('+frm+','+die+')">🎲'+die+' '+tgtStr+'</button> ';
       });
       moveBtns += '<button class="btn btn-ghost btn-sm" onclick="selPt=null;loadBgGame()">✕</button>';
       moveBtns = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding:0 2px">'+moveBtns+'</div>';
@@ -1302,27 +1513,30 @@ function renderBgGame(gd){
     }
   }
 
+  var myOff = bgMyPlayer===1 ? offP1 : offP2;
+  var oppOff = bgMyPlayer===1 ? offP2 : offP1;
+  var myLabel = bgMyPlayer===1 ? '⚪ Белые' : '⚫ Чёрные';
+  var oppLabel = bgMyPlayer===1 ? '⚫ Чёрные' : '⚪ Белые';
   el.innerHTML =
     '<div class="card" style="padding:10px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px">'+
-        '<div>'+(bgMyPlayer===1?'⚪ Ты':'⚫ Ты')+' · выбито:'+(bgMyPlayer===1?offP1:offP2)+'</div>'+
-        '<div style="color:'+(isMyTurn?'var(--g)':'var(--mt)')+'">'+( isMyTurn?'🟢 Ход':'⏳ Ждём')+'</div>'+
-        '<div>Соп. · выбито:'+(bgMyPlayer===1?offP2:offP1)+'</div>'+
+        '<div>'+myLabel+' (ты)<br>снято: '+myOff+'</div>'+
+        '<div style="text-align:center;color:'+(isMyTurn?'var(--g)':'var(--mt)')+'">'+( isMyTurn?'🟢 Ваш ход':'⏳ Ждём')+'<br><span style="font-size:10px">'+gd.player1_name+' vs '+gd.player2_name+'</span></div>'+
+        '<div style="text-align:right">'+oppLabel+'<br>снято: '+oppOff+'</div>'+
       '</div>'+
       '<div class="bg-board">'+
         '<div class="bg-row">'+topRow+'</div>'+
         '<div class="bg-mid">'+
-          '<div style="font-size:11px;color:var(--mt)">Бар:<br>⚪'+barP1+' ⚫'+barP2+'</div>'+
+          '<div style="font-size:10px;color:var(--mt)">Ходов:<br>'+st.moves_left.length+'</div>'+
           '<div class="bg-dice">'+diceHtml+'</div>'+
-          '<div style="font-size:11px;color:var(--mt)">Ходов:'+st.moves_left.length+'</div>'+
+          '<div style="font-size:10px;color:var(--mt)">Ставка:<br>'+gd.bet+'см</div>'+
         '</div>'+
         '<div class="bg-row">'+botRow+'</div>'+
       '</div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
-        barBtn+
         '<button class="btn btn-r btn-sm" style="margin-left:auto" onclick="bgResign('+gd.game_id+')">🏳️ Сдаться</button>'+
       '</div>'+
-      (selPt!==null?'<div style="font-size:12px;color:var(--b);margin-top:4px;text-align:center">Точка '+(selPt===-1?'бар':selPt)+' — выбери ход:</div>'+moveBtns:'')
+      (selPt!==null?'<div style="font-size:12px;color:var(--b);margin-top:4px;text-align:center">Точка '+selPt+' — выбери ход:</div>'+moveBtns:'')
     +'</div>';
 }
 
@@ -1331,30 +1545,32 @@ function onPtClick(idx){
   var validFroms = new Set(validMoves.map(function(mv){ return mv[0]; }));
   if (!validFroms.has(idx)) { selPt = null; return; }
   selPt = idx;
-  renderBgGame({ status: 'active', game_id: bgGameId, bet: 0, my_player: bgMyPlayer, state: bgState, valid_moves: validMoves, winner_id: null });
+  renderBgGame({ status: 'active', game_id: bgGameId, bet: 0, my_player: bgMyPlayer,
+    player1_name: '', player2_name: '', state: bgState, valid_moves: validMoves, winner_id: null });
 }
 async function doMove(frm, die){
   selPt = null;
   try {
-    const { ok, data } = await api('POST', `/api/backgammon/move/${bgGameId}/${userId}`, { from_pt: frm, die });
-    if (ok && data.success) {
-      bgState = data.state;
-      validMoves = Array.isArray(data.valid_moves) ? data.valid_moves : [];
-      if (data.winner) {
+    var r = await api('POST', '/api/backgammon/move/'+bgGameId+'/'+userId, { from_pt: frm, die: die });
+    if (r.ok && r.data.success) {
+      bgState = r.data.state;
+      validMoves = Array.isArray(r.data.valid_moves) ? r.data.valid_moves : [];
+      if (r.data.winner) {
         await loadBgGame();
       } else {
-        renderBgGame({ status: 'active', game_id: bgGameId, bet: 0, my_player: bgMyPlayer, state: bgState, valid_moves: validMoves });
+        renderBgGame({ status: 'active', game_id: bgGameId, bet: 0, my_player: bgMyPlayer,
+          player1_name: '', player2_name: '', state: bgState, valid_moves: validMoves, winner_id: null });
         if (bgState.current !== bgMyPlayer) bgPoll = setTimeout(loadBgGame, 2000);
       }
-    } else showToast('❌ ' + (data.error||'Неверный ход'), true);
+    } else showToast('❌ ' + (r.data.error||'Неверный ход'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }
 async function bgResign(gid){
   clearTimeout(bgPoll);
   try {
-    const { ok, data } = await api('POST', `/api/backgammon/resign/${gid}/${userId}`);
-    if (ok && data.success) { bgGameId = null; bgLoaded = false; loadBg(); }
-    else showToast('❌ ' + (data.error||'Ошибка'), true);
+    var r = await api('POST', '/api/backgammon/resign/'+gid+'/'+userId, {});
+    if (r.ok && r.data.success) { bgGameId = null; bgLoaded = false; loadBg(); }
+    else showToast('❌ ' + (r.data.error||'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }
 
