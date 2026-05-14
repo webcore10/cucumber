@@ -573,15 +573,22 @@ document.getElementById('box-btn').addEventListener('click', async () => {
 async function loadPrices() {
   try {
     const r=await fetch('/api/stocks');
-    const d=await r.json();
-    if(Array.isArray(d)) { allPrices=d; renderPriceLists(); }
-  } catch(e) {}
+    if(r.ok){
+      const d=await r.json();
+      if(Array.isArray(d)&&d.length) { allPrices=d; renderPriceLists(); }
+      else document.getElementById('stocks-list').innerHTML='<div class="no-data">Цены обновляются — загляни через минуту</div>';
+    } else {
+      document.getElementById('stocks-list').innerHTML='<div class="no-data">Ошибка сервера ('+r.status+')</div>';
+    }
+  } catch(e) {
+    document.getElementById('stocks-list').innerHTML='<div class="no-data">Нет связи с сервером</div>';
+  }
   setTimeout(loadPrices,60000);
 }
 
 function renderPriceLists() {
   const el=document.getElementById('stocks-list');
-  if (!Array.isArray(allPrices)||!allPrices.length) { el.innerHTML='<div class="no-data">Нет данных о ценах — подождите несколько минут</div>'; return; }
+  if (!Array.isArray(allPrices)||!allPrices.length) { el.innerHTML='<div class="no-data">Цены обновляются — загляни через минуту</div>'; return; }
   el.innerHTML=allPrices.map(it=>{
     const up=it.change>=0;
     const emoji=it.name.split(' ')[0];
@@ -764,13 +771,15 @@ async function loadBusiness() {
   document.getElementById('biz-list').innerHTML='<div class="spin-loader">Загрузка</div>';
   try {
     if(!Array.isArray(bizTypes)||!bizTypes.length){
-      const rt=await fetch('/api/business/types');
-      const parsed=await rt.json();
-      if(Array.isArray(parsed)) bizTypes=parsed;
+      try{
+        const rt=await fetch('/api/business/types');
+        if(rt.ok){const parsed=await rt.json();if(Array.isArray(parsed))bizTypes=parsed;}
+      }catch(e){}
     }
     const r=await fetch(`/api/business/${userId}`);
+    if(!r.ok){document.getElementById('biz-list').innerHTML='<div class="no-data">Ошибка сервера ('+r.status+')</div>';return;}
     const d=await r.json();
-    if(!d.length){document.getElementById('biz-list').innerHTML='<div class="no-data">Нет предприятий</div>';return;}
+    if(!Array.isArray(d)||!d.length){document.getElementById('biz-list').innerHTML='<div class="no-data">Нет предприятий</div>';return;}
     document.getElementById('biz-list').innerHTML=d.map(b=>{
       const matL={low:'🟤',medium:'🔵',high:'💎'};
       const cdH=b.prod_h||4;

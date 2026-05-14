@@ -3595,21 +3595,24 @@ async def _wa_grow(request):
 
 
 async def _wa_stocks(request):
-    real_p, prev_r = {}, {}
-    async with aiosqlite.connect(DB_NAME) as db:
-        for tk in STOCKS:
-            cur = await db.execute(
-                "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
-            rows = await cur.fetchall()
-            real_p[tk] = rows[0][0] if rows else 0.0
-            prev_r[tk] = rows[1][0] if len(rows) >= 2 else real_p[tk]
-    result = []
-    for tk, nm in STOCKS.items():
-        pr = real_p.get(tk, 0.0)
-        pv = prev_r.get(tk, pr)
-        ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
-        result.append({"ticker": tk, "name": nm, "price": pr, "change": ch, "type": "stock"})
-    return _json(result)
+    try:
+        real_p, prev_r = {}, {}
+        async with aiosqlite.connect(DB_NAME) as db:
+            for tk in STOCKS:
+                cur = await db.execute(
+                    "SELECT price FROM price_history WHERE ticker=? ORDER BY id DESC LIMIT 2", (tk,))
+                rows = await cur.fetchall()
+                real_p[tk] = rows[0][0] if rows else 0.0
+                prev_r[tk] = rows[1][0] if len(rows) >= 2 else real_p[tk]
+        result = []
+        for tk, nm in STOCKS.items():
+            pr = real_p.get(tk, 0.0)
+            pv = prev_r.get(tk, pr)
+            ch = round((pr - pv) / pv * 100, 2) if pv else 0.0
+            result.append({"ticker": tk, "name": nm, "price": pr, "change": ch, "type": "stock"})
+        return _json(result)
+    except Exception as e:
+        return _json({"error": "db_error", "detail": str(e)}, 500)
 
 
 async def _wa_history(request):
