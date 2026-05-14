@@ -202,6 +202,17 @@ canvas#price-chart{max-height:130px}
 .chip-r{background:var(--rd);color:var(--r)}
 .new-biz-btn{width:100%;padding:12px;background:linear-gradient(135deg,#1a6b2a,var(--g));color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
 
+/* BANK ACTIONS */
+.bank-action{background:var(--bg3);border-radius:var(--rad);padding:12px;margin-bottom:8px}
+.bank-action-title{font-size:11px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.loan-amount{font-size:22px;font-weight:800;color:var(--r);margin-bottom:4px}
+.deposit-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--brd)}
+.deposit-row:last-child{border-bottom:none}
+.deposit-info{font-size:12px;line-height:1.5}
+.deposit-total{font-size:13px;font-weight:700;color:var(--g)}
+.dep-tab{flex:1;padding:8px 4px;background:none;border:none;color:var(--mt);font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;transition:background .15s,color .15s;text-align:center}
+.dep-tab.on{background:var(--bg2);color:var(--txt)}
+
 /* NEWS */
 .news-card{background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px}
 .news-date{font-size:10px;color:var(--mt);margin-bottom:4px}
@@ -388,6 +399,28 @@ canvas#price-chart{max-height:130px}
     <div class="card">
       <div class="card-title">💡 Инфо</div>
       <div id="bank-info" style="font-size:13px;color:var(--mt);line-height:1.7">Загрузка...</div>
+    </div>
+    <!-- Loan -->
+    <div class="card" id="bank-loan-section">
+      <div class="card-title">💳 Кредит</div>
+      <div id="bank-loan-content"><div class="spin">Загрузка...</div></div>
+    </div>
+    <!-- Deposits -->
+    <div class="card" id="bank-deposit-section">
+      <div class="card-title">💰 Вклады</div>
+      <div class="sub-nav" style="margin-bottom:10px">
+        <button class="dep-tab on" id="dep-tab-list" onclick="depTab('list')">📋 Мои вклады</button>
+        <button class="dep-tab" id="dep-tab-new" onclick="depTab('new')">➕ Открыть вклад</button>
+      </div>
+      <div id="dep-list-panel"><div class="spin">Загрузка...</div></div>
+      <div id="dep-new-panel" style="display:none">
+        <div style="font-size:13px;color:var(--mt);margin-bottom:10px">Выбери срок вклада:</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(1,5)">📅 1 день — <b>+5%</b></button>
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(2,12)">📅 2 дня — <b>+12%</b></button>
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(3,20)">📅 3 дня — <b>+20%</b></button>
+        </div>
+      </div>
     </div>
   </div>
   <div id="mr-forbes" style="display:none">
@@ -1177,6 +1210,7 @@ async function spin(){
 // ══════════════════════════════════════════════
 // BANK
 // ══════════════════════════════════════════════
+let bankUserData = null;
 async function loadBank(){
   try {
     const { ok, data } = await api('GET', '/api/bank');
@@ -1187,10 +1221,139 @@ async function loadBank(){
     document.getElementById('bk-rich').textContent = data.rich_count;
     document.getElementById('bk-inf').textContent = data.inflation_rate + '%';
     document.getElementById('bank-info').innerHTML =
-      `<p>💰 Резерв: <b>${fmt(data.capital)} см</b></p>
-       <br><p>📈 Инфляция: <b>${data.inflation_rate}%</b> (начисляется при ≥1000 см)</p>
-       <br><p>👑 Богачей (≥5000 см): <b>${data.rich_count}</b> из <b>${data.users_count}</b></p>`;
+      '<p>💰 Резерв: <b>'+fmt(data.capital)+' см</b></p><br>'+
+      '<p>📈 Инфляция: <b>'+data.inflation_rate+'%</b> (начисляется при ≥1000 см)</p><br>'+
+      '<p>👑 Богачей (≥5000 см): <b>'+data.rich_count+'</b> из <b>'+data.users_count+'</b></p>';
   } catch(e) {}
+  if (userId) loadBankUser();
+}
+async function loadBankUser(){
+  if (!userId) return;
+  try {
+    var r = await api('GET', '/api/bank/user/'+userId);
+    if (!r.ok) return;
+    bankUserData = r.data;
+    renderLoan();
+    renderDeposits();
+  } catch(e) {}
+}
+function renderLoan(){
+  var el = document.getElementById('bank-loan-content');
+  if (!bankUserData){ el.innerHTML = '<div class="no-data">Ошибка загрузки</div>'; return; }
+  var loan = bankUserData.loan || 0;
+  var maxLoan = bankUserData.max_loan || 0;
+  if (loan > 0){
+    el.innerHTML =
+      '<div class="bank-action">'+
+        '<div class="loan-amount">'+fmt(loan)+' см</div>'+
+        '<div style="font-size:11px;color:var(--mt);margin-bottom:10px">Текущий долг · +30%/день</div>'+
+        '<button class="btn btn-r btn-full" onclick="repayLoan()">💳 Погасить кредит</button>'+
+      '</div>';
+  } else {
+    el.innerHTML =
+      '<div style="font-size:13px;color:var(--mt);margin-bottom:10px">'+
+        '📋 Ставка: <b>30% в день</b> · Макс: <b>'+fmt(maxLoan)+' см</b>'+
+      '</div>'+
+      '<button class="btn btn-b btn-full" onclick="showTakeLoan()">💵 Взять кредит</button>';
+  }
+}
+function renderDeposits(){
+  var el = document.getElementById('dep-list-panel');
+  var deps = (bankUserData && bankUserData.deposits) || [];
+  if (!deps.length){
+    el.innerHTML = '<div class="no-data">Нет активных вкладов</div>';
+    return;
+  }
+  var html = '';
+  deps.forEach(function(d){
+    var readyHtml = d.ready
+      ? '<button class="btn btn-g btn-sm" onclick="claimDeposit('+d.deposit_id+','+d.total+')">💵 Забрать '+fmt(d.total)+' см</button>'
+      : '<span style="font-size:11px;color:var(--mt)">⏳ '+fmtDur(d.remaining_s)+'</span>';
+    html +=
+      '<div class="deposit-row">'+
+        '<div class="deposit-info">'+
+          '<div style="font-weight:600">'+fmt(d.amount)+' см · '+d.days+' д. · +'+Math.round(d.rate*100)+'%</div>'+
+          '<div style="color:var(--g)">Получишь: '+fmt(d.total)+' см</div>'+
+        '</div>'+
+        '<div>'+readyHtml+'</div>'+
+      '</div>';
+  });
+  el.innerHTML = html;
+}
+function depTab(name){
+  document.getElementById('dep-tab-list').classList.toggle('on', name==='list');
+  document.getElementById('dep-tab-new').classList.toggle('on', name==='new');
+  document.getElementById('dep-list-panel').style.display = name==='list' ? '' : 'none';
+  document.getElementById('dep-new-panel').style.display = name==='new' ? '' : 'none';
+}
+function showTakeLoan(){
+  if (!bankUserData){ showToast('Загрузка...', true); return; }
+  var max = bankUserData.max_loan || 0;
+  openModal('💵 Взять кредит',
+    '<div class="modal-label">Ставка: 30% в день · Макс: '+fmt(max)+' см</div>'+
+    '<input class="modal-inp" id="m-loan-amt" type="number" min="1" max="'+max+'" placeholder="Сумма (см)" inputmode="numeric">',
+    '💵 Взять', doTakeLoan);
+}
+async function doTakeLoan(){
+  var amount = parseInt(document.getElementById('m-loan-amt')?.value||0);
+  if (!amount){ showToast('Введи сумму', true); return; }
+  closeModal();
+  var r = await api('POST', '/api/bank/loan/'+userId, { amount: amount });
+  if (r.ok && r.data.success){
+    showToast('✅ Кредит '+fmt(amount)+' см выдан!', false);
+    bankUserData = null; await loadUser(); loadBankUser();
+  } else {
+    var msgs = { has_loan:'У тебя уже есть кредит', exceeds_max:'Превышен максимум', bank_insufficient:'Банк временно закрыт', amount_zero:'Укажи сумму' };
+    showToast('❌ '+(msgs[r.data.error]||r.data.error||'Ошибка'), true);
+  }
+}
+async function repayLoan(){
+  var r = await api('POST', '/api/bank/repay/'+userId, {});
+  if (r.ok && r.data.success){
+    showToast('✅ Кредит '+fmt(r.data.repaid)+' см погашен!', false);
+    bankUserData = null; await loadUser(); loadBankUser();
+  } else {
+    var msgs = { no_loan:'Нет кредита', insufficient:'Нет достаточно средств' };
+    showToast('❌ '+(msgs[r.data.error]||r.data.error||'Ошибка'), true);
+  }
+}
+function showDepositForm(days, pct){
+  if (!bankUserData){ showToast('Загрузка...', true); return; }
+  var sz = bankUserData.size || 0;
+  openModal('💰 Вклад на '+days+' '+(['день','дня','дня'][days-1]||'д.')+' (+'+pct+'%)',
+    '<div class="modal-label">У тебя: '+fmt(sz)+' см · Досрочно снять нельзя</div>'+
+    '<input class="modal-inp" id="m-dep-amt" type="number" min="1" placeholder="Сумма (см)" inputmode="numeric">'+
+    '<div style="font-size:11px;color:var(--mt);margin-top:4px" id="m-dep-calc">Получишь: — см</div>',
+    '💰 Открыть вклад', function(){ doDeposit(days); });
+  setTimeout(function(){
+    var inp = document.getElementById('m-dep-amt');
+    if (inp) inp.oninput = function(){
+      var a = parseInt(inp.value)||0;
+      document.getElementById('m-dep-calc').textContent = 'Получишь: '+fmt(a+Math.floor(a*pct/100))+' см';
+    };
+  }, 50);
+}
+async function doDeposit(days){
+  var amount = parseInt(document.getElementById('m-dep-amt')?.value||0);
+  if (!amount){ showToast('Введи сумму', true); return; }
+  closeModal();
+  var r = await api('POST', '/api/bank/deposit/'+userId, { amount: amount, days: days });
+  if (r.ok && r.data.success){
+    showToast('✅ Вклад '+fmt(amount)+' см открыт!', false);
+    bankUserData = null; await loadUser(); loadBankUser(); depTab('list');
+  } else {
+    showToast('❌ '+(r.data.error==='insufficient'?'Нет '+fmt(r.data.have)+' см':r.data.error||'Ошибка'), true);
+  }
+}
+async function claimDeposit(did, total){
+  var r = await api('POST', '/api/bank/deposit/'+userId+'/claim/'+did, {});
+  if (r.ok && r.data.success){
+    showToast('💰 Получено '+fmt(r.data.total)+' см!', false);
+    bankUserData = null; await loadUser(); loadBankUser();
+  } else {
+    var msgs = { not_ready:'Вклад ещё не созрел', already_claimed:'Уже получен' };
+    showToast('❌ '+(msgs[r.data.error]||r.data.error||'Ошибка'), true);
+  }
 }
 
 // ══════════════════════════════════════════════

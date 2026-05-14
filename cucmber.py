@@ -3708,6 +3708,133 @@ async def _wa_bank(request):
     return _json({"capital": cap, "users_count": uc, "rich_count": rc,
                   "inflation_rate": round(min(50.0, rc * 3.0), 1), "deposits_total": dt})
 
+async def _wa_bank_user(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    await apply_loan_interest(uid)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT loan, size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        loan, size = row[0] or 0, row[1] or 0
+        cap = (await (await db.execute("SELECT capital FROM bank WHERE id=1")).fetchone() or [0])[0]
+        cur2 = await db.execute(
+            "SELECT deposit_id,amount,rate,days,matures_at,claimed FROM deposits WHERE user_id=? AND claimed=0 ORDER BY matures_at",
+            (uid,))
+        dep_rows = await cur2.fetchall()
+    now = now_msk()
+    deposits = []
+    for r in dep_rows:
+        did, amount, rate, days, matures_at, claimed = r
+        matures = datetime.fromisoformat(matures_at)
+        if matures.tzinfo is None: matures = MSK.localize(matures)
+        interest = int(amount * rate)
+        total = amount + interest
+        ready = now >= matures
+        rem_s = max(0, int((matures - now).total_seconds())) if not ready else 0
+        deposits.append({"deposit_id": did, "amount": amount, "rate": rate,
+                          "days": days, "interest": interest, "total": total,
+                          "matures_at": matures_at, "ready": ready, "remaining_s": rem_s})
+    max_loan = min(cap, 100000)
+    return _json({"loan": loan, "size": size, "bank_capital": cap,
+                  "max_loan": max_loan, "deposits": deposits})
+
+async def _wa_bank_take_loan(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); amount = int(body.get("amount", 0))
+    except: return _json({"error":"invalid"},400)
+    if amount <= 0: return _json({"error":"amount_zero"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT loan, size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        loan, size = row[0] or 0, row[1] or 0
+        if loan > 0: return _json({"error":"has_loan","loan":loan},400)
+        cap = (await (await db.execute("SELECT capital FROM bank WHERE id=1")).fetchone() or [0])[0]
+        max_loan = min(cap, 100000)
+        if amount > max_loan: return _json({"error":"exceeds_max","max_loan":max_loan},400)
+        if cap < amount: return _json({"error":"bank_insufficient"},400)
+        now = now_msk()
+        await db.execute("UPDATE users SET loan=?,loan_date=?,size=size+? WHERE user_id=?",
+                         (amount, now.isoformat(), amount, uid))
+        await db.execute("UPDATE bank SET capital=capital-? WHERE id=1", (amount,))
+        await db.commit()
+    return _json({"success":True,"loan":amount,"new_size":size+amount})
+
+async def _wa_bank_repay_loan(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    await apply_loan_interest(uid)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT loan, size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        loan, size = row[0] or 0, row[1] or 0
+        if loan <= 0: return _json({"error":"no_loan"},400)
+        if size < loan: return _json({"error":"insufficient","need":loan,"have":size},400)
+        await db.execute("UPDATE users SET loan=0,loan_date=NULL,size=size-? WHERE user_id=?", (loan, uid))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (loan,))
+        await db.commit()
+    return _json({"success":True,"repaid":loan,"new_size":size-loan})
+
+async def _wa_bank_deposit(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        amount = int(body.get("amount", 0)); days = int(body.get("days", 1))
+    except: return _json({"error":"invalid"},400)
+    rates = {1: 0.05, 2: 0.12, 3: 0.20}
+    if days not in rates: return _json({"error":"invalid_days"},400)
+    if amount <= 0: return _json({"error":"amount_zero"},400)
+    rate = rates[days]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        size = row[0] or 0
+        if size < amount: return _json({"error":"insufficient","have":size},400)
+        now = now_msk()
+        matures_at = (now + timedelta(days=days)).isoformat()
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (amount, uid))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (amount,))
+        cur2 = await db.execute(
+            "INSERT INTO deposits (user_id,amount,rate,days,created_at,matures_at) VALUES (?,?,?,?,?,?)",
+            (uid, amount, rate, days, now.isoformat(), matures_at))
+        did = cur2.lastrowid
+        await db.commit()
+    interest = int(amount * rate)
+    return _json({"success":True,"deposit_id":did,"amount":amount,
+                  "interest":interest,"total":amount+interest,
+                  "matures_at":matures_at,"new_size":size-amount})
+
+async def _wa_bank_claim(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        did = int(request.match_info["deposit_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT amount,rate,matures_at,claimed FROM deposits WHERE deposit_id=? AND user_id=?", (did, uid))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        amount, rate, matures_at, claimed = row
+        if claimed: return _json({"error":"already_claimed"},400)
+        matures = datetime.fromisoformat(matures_at)
+        if matures.tzinfo is None: matures = MSK.localize(matures)
+        if now_msk() < matures:
+            rem = int((matures - now_msk()).total_seconds())
+            return _json({"error":"not_ready","remaining_s":rem},400)
+        total = amount + int(amount * rate)
+        await db.execute("UPDATE deposits SET claimed=1 WHERE deposit_id=?", (did,))
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (total, uid))
+        cap = (await (await db.execute("SELECT capital FROM bank WHERE id=1")).fetchone() or [0])[0]
+        withdraw = min(total, cap)
+        if withdraw > 0:
+            await db.execute("UPDATE bank SET capital=capital-? WHERE id=1", (withdraw,))
+        await db.commit()
+    return _json({"success":True,"total":total})
+
 
 _SLOT_SYMS = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "🥒"]
 _SLOT_W = [30, 25, 20, 15, 5, 3, 2]
@@ -4483,6 +4610,11 @@ async def start_webapp():
     app.router.add_get("/api/top", _wa_top)
     app.router.add_get("/api/portfolio/{user_id}", _wa_portfolio)
     app.router.add_get("/api/bank", _wa_bank)
+    app.router.add_get("/api/bank/user/{user_id}", _wa_bank_user)
+    app.router.add_post("/api/bank/loan/{user_id}", _wa_bank_take_loan)
+    app.router.add_post("/api/bank/repay/{user_id}", _wa_bank_repay_loan)
+    app.router.add_post("/api/bank/deposit/{user_id}", _wa_bank_deposit)
+    app.router.add_post("/api/bank/deposit/{user_id}/claim/{deposit_id}", _wa_bank_claim)
     app.router.add_post("/api/slots/{user_id}", _wa_slots)
     app.router.add_get("/api/business/types", _wa_biz_types)
     app.router.add_get("/api/business/{user_id}", _wa_business)
