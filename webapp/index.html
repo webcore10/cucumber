@@ -633,7 +633,7 @@ async function loadStocks(){
   try {
     const { ok, data } = await api('GET', '/api/stocks');
     if (ok && Array.isArray(data) && data.length) {
-      allPrices = data;
+      allPrices = data.filter(it => it.type !== 'crypto');
       stocksLoaded = true;
       renderStocks();
     } else {
@@ -800,12 +800,20 @@ function renderPortfolio(){
 // ══════════════════════════════════════════════
 // BUSINESS
 // ══════════════════════════════════════════════
+const FALLBACK_BIZ = [
+  {type:'farm',    emoji:'🌾', label:'Ферма',       cost:300,  min_emp:2, base_out:10, upg_cost:150},
+  {type:'factory', emoji:'🏭', label:'Завод',       cost:800,  min_emp:3, base_out:15, upg_cost:300},
+  {type:'mine',    emoji:'⛏️', label:'Шахта',       cost:600,  min_emp:4, base_out:13, upg_cost:250},
+  {type:'brewery', emoji:'🍺', label:'Пивоварня',   cost:500,  min_emp:2, base_out:12, upg_cost:200},
+  {type:'it',      emoji:'💻', label:'IT-компания', cost:1200, min_emp:1, base_out:25, upg_cost:500},
+];
 async function loadBizTypes(){
   if (bizTypes.length) return;
   try {
     const { ok, data } = await api('GET', '/api/business/types');
-    if (ok && Array.isArray(data)) bizTypes = data;
-  } catch(e) {}
+    if (ok && Array.isArray(data) && data.length) bizTypes = data;
+    else bizTypes = FALLBACK_BIZ;
+  } catch(e) { bizTypes = FALLBACK_BIZ; }
 }
 async function loadBusiness(){
   if (!userId) return;
@@ -1187,109 +1195,113 @@ async function loadBgGame(){
   }
 }
 
-function renderBgGame(d){
+function renderBgGame(gd){
   const el = document.getElementById('bg-content');
-  if (d.status === 'waiting'){
-    el.innerHTML = `<div class="card">
-      <div class="bg-status">🎲 Ожидание соперника...<br><span style="font-size:12px;color:var(--mt)">Игра #${d.game_id} · Ставка: ${d.bet} см</span></div>
-      <button class="btn btn-r btn-full" onclick="bgResign(${d.game_id})">❌ Отменить</button>
-    </div>`;
+  if (!el) return;
+  if (gd.status === 'waiting'){
+    el.innerHTML = '<div class="card"><div class="bg-status">🎲 Ожидание соперника...<br><span style="font-size:12px;color:var(--mt)">Игра #'+gd.game_id+' · Ставка: '+gd.bet+' см</span></div><button class="btn btn-r btn-full" onclick="bgResign('+gd.game_id+')">❌ Отменить</button></div>';
     return;
   }
-  if (d.status === 'finished'){
-    const won = d.winner_id === userId;
-    el.innerHTML = `<div class="card">
-      <div class="bg-status" style="color:${won?'var(--g)':'var(--r)'}">
-        ${won?'🏆 Победа!':'💀 Поражение'}<br>
-        <span style="font-size:12px">${won?'+'+d.bet*2+' см':d.bet>0?'−'+d.bet+' см':''}</span>
-      </div>
-      <button class="btn btn-g btn-full" onclick="bgGameId=null;bgLoaded=false;loadBg()">🎲 Новая игра</button>
-    </div>`;
+  if (gd.status === 'finished'){
+    const won = gd.winner_id === userId;
+    el.innerHTML = '<div class="card"><div class="bg-status" style="color:'+(won?'var(--g)':'var(--r)')+'">'+
+      (won?'🏆 Победа!':'💀 Поражение')+'<br><span style="font-size:12px">'+(won?'+'+gd.bet*2+' см':(gd.bet>0?'−'+gd.bet+' см':''))+'</span></div>'+
+      '<button class="btn btn-g btn-full" onclick="bgGameId=null;bgLoaded=false;loadBg()">🎲 Новая игра</button></div>';
     return;
   }
-  // Active game
   const st = bgState;
-  if (!st){ el.innerHTML = '<div class="no-data">Ошибка состояния</div>'; return; }
+  if (!st){ el.innerHTML = '<div class="no-data">Ошибка состояния игры</div>'; return; }
+
   const isMyTurn = st.current === bgMyPlayer;
-  const myPip = bgMyPlayer === 1 ? '⚪' : '⚫';
-  const opPip = bgMyPlayer === 1 ? '⚫' : '⚪';
-
-  // Build valid from-points
-  const validFroms = new Set(validMoves.map(([f,_]) => f));
-
-  // Render board: top row pts 23→12, bottom row pts 0→11
-  function renderPoint(idx, isTop){
-    const v = st.board[idx];
-    const count = Math.abs(v);
-    const isP1 = v > 0;
-    const pip = isP1 ? '⚪' : '⚫';
-    const pipCls = isP1 ? 'pip-w' : 'pip-b';
-    const isFromBar = idx === -1;
-    const isValid = validFroms.has(isFromBar ? -1 : idx);
-    const isSel = selPt === idx;
-    const isTarget = selPt !== null && validMoves.some(([f,die]) => {
-      const tgt = bgMyPlayer===1 ? f-die : f+die;
-      return f === selPt && (tgt === idx || (tgt < 0 || tgt > 23));
-    });
-    let cls = 'bg-pt';
-    if (isValid && isMyTurn) cls += ' valid';
-    if (isSel) cls += ' selected';
-
-    const pips = count > 5
-      ? `<div class="bg-pip ${pipCls}">${count}</div>`
-      : Array(Math.min(count,5)).fill(`<div class="bg-pip ${pipCls}"></div>`).join('');
-    const dir = isTop ? 'column' : 'column-reverse';
-    return `<div class="${cls}" style="flex-direction:${dir}" onclick="onPtClick(${idx})" data-pt="${idx}">
-      ${!isTop ? `<div class="bg-pt-num">${idx}</div>` : ''}
-      ${pips}
-      ${isTop ? `<div class="bg-pt-num">${idx}</div>` : ''}
-    </div>`;
-  }
-
-  const diceHtml = st.dice.map((d,i) => {
-    const used = !st.moves_left.includes(d) || (st.moves_left.filter(x=>x===d).length < st.dice.filter(x=>x===d).length);
-    return `<div class="die${used?' used':''}">${d}</div>`;
-  }).join('');
-
+  const validFroms = new Set(validMoves.map(function(mv){ return mv[0]; }));
   const barP1 = st.bar[0], barP2 = st.bar[1];
   const offP1 = st.off[0], offP2 = st.off[1];
 
-  el.innerHTML = `
-    <div class="card" style="padding:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px">
-        <div>${bgMyPlayer===1?'⚪ Ты (белые)':'⚫ Ты (чёрные)'} · Выбито: ${bgMyPlayer===1?offP1:offP2}</div>
-        <div style="color:${isMyTurn?'var(--g)':'var(--mt)'}">${isMyTurn?'🟢 Твой ход':'⏳ Ход соперника'}</div>
-        <div>${bgMyPlayer===1?'⚫ Соп.':'⚪ Соп.'} · Выбито: ${bgMyPlayer===1?offP2:offP1}</div>
-      </div>
-      <div class="bg-board">
-        <div class="bg-row">${[23,22,21,20,19,18,17,16,15,14,13,12].map(i=>renderPoint(i,true)).join('')}</div>
-        <div class="bg-mid">
-          <div style="font-size:11px;color:var(--mt)">Бар:<br>⚪${barP1} ⚫${barP2}</div>
-          <div class="bg-dice">${diceHtml}</div>
-          <div style="font-size:11px;color:var(--mt)">Ходов: ${st.moves_left.length}</div>
-        </div>
-        <div class="bg-row">${[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>renderPoint(i,false)).join('')}</div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        ${(barP1 > 0 && bgMyPlayer===1) || (barP2 > 0 && bgMyPlayer===2) ?
-          `<button class="btn btn-b btn-sm" onclick="onPtClick(-1)">📤 Ввести с бара</button>` : ''}
-        <button class="btn btn-r btn-sm" style="margin-left:auto" onclick="bgResign(${d.game_id})">🏳️ Сдаться</button>
-      </div>
-      ${selPt !== null ? `<div style="font-size:12px;color:var(--b);margin-top:6px;text-align:center">Выбрана точка ${selPt === -1 ? 'бар' : selPt} — выбери ход ниже</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-          ${validMoves.filter(([f,_])=>f===selPt).map(([f,die]) => {
-            const tgt = bgMyPlayer===1 ? f-die : f+die;
-            const tgtStr = tgt<0||tgt>23 ? 'снятие' : ('→ '+tgt);
-            return `<button class="btn btn-g btn-sm" onclick="doMove(${f},${die})">Кость ${die} ${tgtStr}</button>`;
-          }).join('')}
-          <button class="btn btn-ghost btn-sm" onclick="selPt=null;loadBgGame()">Отмена</button>
-        </div>` : ''}
-    </div>`;
+  // Dice row
+  var diceHtml = '';
+  var usedCount = {};
+  st.moves_left.forEach(function(dv){ usedCount[dv]=(usedCount[dv]||0)+1; });
+  var availCount = {};
+  st.dice.forEach(function(dv){ availCount[dv]=(availCount[dv]||0)+1; });
+  st.dice.forEach(function(dv){
+    var used = (availCount[dv]||0) > (usedCount[dv]||0);
+    availCount[dv] = Math.max(0,(availCount[dv]||0)-1);
+    if (!used && usedCount[dv]>0) usedCount[dv]--;
+    diceHtml += '<div class="die'+(used?' used':'')+'">'+dv+'</div>';
+  });
+
+  // Build point HTML
+  function ptHtml(idx, isTop){
+    var v = st.board[idx];
+    var cnt = Math.abs(v);
+    var isP1 = v > 0;
+    var pipCls = isP1 ? 'pip-w' : 'pip-b';
+    var isValid = validFroms.has(idx) && isMyTurn;
+    var isSel = selPt === idx;
+    var cls = 'bg-pt' + (isValid?' valid':'') + (isSel?' selected':'');
+    var pipsHtml = '';
+    if (cnt > 5) {
+      pipsHtml = '<div class="bg-pip '+pipCls+'">'+cnt+'</div>';
+    } else {
+      for (var i=0; i<cnt; i++) pipsHtml += '<div class="bg-pip '+pipCls+'"></div>';
+    }
+    var numHtml = '<div class="bg-pt-num">'+idx+'</div>';
+    return '<div class="'+cls+'" style="flex-direction:'+(isTop?'column':'column-reverse')+'" onclick="onPtClick('+idx+')">'
+      + (isTop ? pipsHtml+numHtml : numHtml+pipsHtml) + '</div>';
+  }
+
+  var topRow = '', botRow = '';
+  for (var ti=23; ti>=12; ti--) topRow += ptHtml(ti, true);
+  for (var bi=0; bi<=11; bi++) botRow += ptHtml(bi, false);
+
+  var barBtn = ((barP1>0 && bgMyPlayer===1)||(barP2>0 && bgMyPlayer===2)) && isMyTurn
+    ? '<button class="btn btn-b btn-sm" onclick="onPtClick(-1)">📤 С бара</button>' : '';
+
+  // Move buttons when point selected
+  var moveBtns = '';
+  if (selPt !== null) {
+    var moves = validMoves.filter(function(mv){ return mv[0]===selPt; });
+    if (moves.length) {
+      moves.forEach(function(mv){
+        var frm=mv[0], die=mv[1];
+        var tgt = bgMyPlayer===1 ? frm-die : frm+die;
+        var tgtStr = (tgt<0||tgt>23) ? 'снятие' : '→'+tgt;
+        moveBtns += '<button class="btn btn-g btn-sm" onclick="doMove('+frm+','+die+')">Кость '+die+' '+tgtStr+'</button> ';
+      });
+      moveBtns += '<button class="btn btn-ghost btn-sm" onclick="selPt=null;loadBgGame()">✕</button>';
+      moveBtns = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding:0 2px">'+moveBtns+'</div>';
+    } else {
+      selPt = null;
+    }
+  }
+
+  el.innerHTML =
+    '<div class="card" style="padding:10px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px">'+
+        '<div>'+(bgMyPlayer===1?'⚪ Ты':'⚫ Ты')+' · выбито:'+(bgMyPlayer===1?offP1:offP2)+'</div>'+
+        '<div style="color:'+(isMyTurn?'var(--g)':'var(--mt)')+'">'+( isMyTurn?'🟢 Ход':'⏳ Ждём')+'</div>'+
+        '<div>Соп. · выбито:'+(bgMyPlayer===1?offP2:offP1)+'</div>'+
+      '</div>'+
+      '<div class="bg-board">'+
+        '<div class="bg-row">'+topRow+'</div>'+
+        '<div class="bg-mid">'+
+          '<div style="font-size:11px;color:var(--mt)">Бар:<br>⚪'+barP1+' ⚫'+barP2+'</div>'+
+          '<div class="bg-dice">'+diceHtml+'</div>'+
+          '<div style="font-size:11px;color:var(--mt)">Ходов:'+st.moves_left.length+'</div>'+
+        '</div>'+
+        '<div class="bg-row">'+botRow+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+        barBtn+
+        '<button class="btn btn-r btn-sm" style="margin-left:auto" onclick="bgResign('+gd.game_id+')">🏳️ Сдаться</button>'+
+      '</div>'+
+      (selPt!==null?'<div style="font-size:12px;color:var(--b);margin-top:4px;text-align:center">Точка '+(selPt===-1?'бар':selPt)+' — выбери ход:</div>'+moveBtns:'')
+    +'</div>';
 }
 
 function onPtClick(idx){
   if (!bgState || bgState.current !== bgMyPlayer) return;
-  const validFroms = new Set(validMoves.map(([f,_]) => f));
+  var validFroms = new Set(validMoves.map(function(mv){ return mv[0]; }));
   if (!validFroms.has(idx)) { selPt = null; return; }
   selPt = idx;
   renderBgGame({ status: 'active', game_id: bgGameId, bet: 0, my_player: bgMyPlayer, state: bgState, valid_moves: validMoves, winner_id: null });
