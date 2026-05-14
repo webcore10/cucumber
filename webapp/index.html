@@ -1511,6 +1511,7 @@ async function loadBg(){
   var el = document.getElementById('bg-content');
   if (!userId) { el.innerHTML = '<div class="no-data">Открой через Telegram</div>'; return; }
   el.innerHTML = '<div class="spin">Загрузка нард...</div>';
+  friendsData = null;
   await fetchFriendsData();
   try {
     var r = await api('GET', '/api/backgammon/lobby/'+userId);
@@ -1592,7 +1593,9 @@ function renderBgGame(gd){
   const el = document.getElementById('bg-content');
   if (!el) return;
   if (gd.status === 'waiting'){
-    el.innerHTML = '<div class="card"><div class="bg-status">🎲 Ожидание соперника...<br><span style="font-size:12px;color:var(--mt)">Игра #'+gd.game_id+' · Ставка: '+gd.bet+' см</span></div><button class="btn btn-r btn-full" onclick="bgResign('+gd.game_id+')">❌ Отменить</button></div>';
+    el.innerHTML = '<div class="card"><div class="bg-status">🎲 Ожидание соперника...<br><span style="font-size:12px;color:var(--mt)">Игра #'+gd.game_id+' · Ставка: '+gd.bet+' см</span></div>'+
+      '<button class="btn btn-b btn-full" style="margin-bottom:8px" onclick="showInviteModal('+gd.game_id+')">📨 Пригласить друга</button>'+
+      '<button class="btn btn-r btn-full" onclick="bgResign('+gd.game_id+')">❌ Отменить</button></div>';
     return;
   }
   if (gd.status === 'finished'){
@@ -1733,6 +1736,44 @@ async function bgResign(gid){
   try {
     var r = await api('POST', '/api/backgammon/resign/'+gid+'/'+userId, {});
     if (r.ok && r.data.success) { bgGameId = null; bgLoaded = false; loadBg(); }
+    else showToast('❌ ' + (r.data.error||'Ошибка'), true);
+  } catch(e) { showToast('❌ Нет связи', true); }
+}
+
+function showInviteModal(gid){
+  var friends = (friendsData && friendsData.friends) || [];
+  if (!friends.length){
+    showToast('У тебя пока нет друзей', true);
+    return;
+  }
+  var opts = '';
+  friends.forEach(function(f){
+    opts += '<option value="'+f.user_id+'">'+esc(f.name)+'</option>';
+  });
+  var html = '<div class="modal-overlay" id="invite-modal" onclick="if(event.target===this)closeInviteModal()">' +
+    '<div class="modal-box">' +
+    '<div class="modal-title">📨 Пригласить друга</div>' +
+    '<select class="modal-inp" id="invite-friend-sel">' + opts + '</select>' +
+    '<button class="btn btn-b btn-full" style="margin-top:12px" onclick="doInviteToGame('+gid+')">Отправить приглашение</button>' +
+    '<button class="btn btn-full" style="margin-top:8px;background:var(--c3)" onclick="closeInviteModal()">Отмена</button>' +
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function closeInviteModal(){
+  var m = document.getElementById('invite-modal');
+  if (m) m.remove();
+}
+
+async function doInviteToGame(gid){
+  var sel = document.getElementById('invite-friend-sel');
+  if (!sel) return;
+  var fid = parseInt(sel.value);
+  if (!fid) return;
+  closeInviteModal();
+  try {
+    var r = await api('POST', '/api/backgammon/'+gid+'/invite/'+userId, {friend_id: fid});
+    if (r.ok && r.data.success) showToast('✅ Приглашение отправлено!');
     else showToast('❌ ' + (r.data.error||'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }

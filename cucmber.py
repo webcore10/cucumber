@@ -4179,6 +4179,39 @@ async def _wa_bg_move(request):
     return _json({"success":True,"state":new_state,"valid_moves":valid,
                   "winner":winner,"winner_id":winner_id if winner else None})
 
+async def _wa_bg_invite_friend(request):
+    """Отправить приглашение другу в существующую ожидающую игру."""
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        friend_id = int(body.get("friend_id", 0))
+    except: return _json({"error":"invalid"},400)
+    if not friend_id: return _json({"error":"no_friend"},400)
+    if not WEBAPP_URL: return _json({"error":"no_webapp_url"},503)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT player1_id,bet,status FROM backgammon_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1, bet, status = row
+        if status != 'waiting': return _json({"error":"not_waiting"},400)
+        cur2 = await db.execute("SELECT name FROM users WHERE user_id=?", (uid,))
+        nr = await cur2.fetchone()
+        inviter_name = nr[0] if nr else "Игрок"
+    try:
+        await bot.send_message(
+            friend_id,
+            f"🎲 <b>{inviter_name}</b> приглашает тебя сыграть в длинные нарды!\n"
+            f"Ставка: {bet} см · Игра #{gid}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="🎲 Принять вызов",
+                                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?bg={gid}"))
+            ]])
+        )
+    except Exception as e:
+        return _json({"error":"send_failed","detail":str(e)},500)
+    return _json({"success":True})
+
 async def _wa_bg_resign(request):
     try:
         uid=int(request.match_info["user_id"])
@@ -4638,6 +4671,7 @@ async def start_webapp():
     app.router.add_get("/api/backgammon/state/{game_id}/{user_id}", _wa_bg_state)
     app.router.add_post("/api/backgammon/move/{game_id}/{user_id}", _wa_bg_move)
     app.router.add_post("/api/backgammon/resign/{game_id}/{user_id}", _wa_bg_resign)
+    app.router.add_post("/api/backgammon/{game_id}/invite/{user_id}", _wa_bg_invite_friend)
     app.router.add_get("/api/news", _wa_news_get)
     app.router.add_post("/api/news", _wa_news_post)
     app.router.add_get("/api/friends/{user_id}", _wa_friends_list)
