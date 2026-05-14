@@ -4188,7 +4188,7 @@ async def _wa_bg_invite_friend(request):
         friend_id = int(body.get("friend_id", 0))
     except: return _json({"error":"invalid"},400)
     if not friend_id: return _json({"error":"no_friend"},400)
-    if not WEBAPP_URL: return _json({"error":"no_webapp_url"},503)
+    base_url = WEBAPP_URL or str(request.url.origin())
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute("SELECT player1_id,bet,status FROM backgammon_games WHERE game_id=?", (gid,))
         row = await cur.fetchone()
@@ -4205,7 +4205,7 @@ async def _wa_bg_invite_friend(request):
             f"Ставка: {bet} см · Игра #{gid}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="🎲 Принять вызов",
-                                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?bg={gid}"))
+                                    web_app=WebAppInfo(url=f"{base_url}?bg={gid}"))
             ]])
         )
     except Exception as e:
