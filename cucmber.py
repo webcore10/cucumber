@@ -4188,7 +4188,14 @@ async def _wa_bg_invite_friend(request):
         friend_id = int(body.get("friend_id", 0))
     except: return _json({"error":"invalid"},400)
     if not friend_id: return _json({"error":"no_friend"},400)
-    base_url = WEBAPP_URL or str(request.url.origin())
+    if WEBAPP_URL:
+        base_url = WEBAPP_URL
+    else:
+        fwd_host = request.headers.get("X-Forwarded-Host") or request.headers.get("Host", "")
+        fwd_proto = request.headers.get("X-Forwarded-Proto", "https")
+        base_url = f"{fwd_proto}://{fwd_host}" if fwd_host else ""
+    if not base_url:
+        return _json({"error":"no_webapp_url"},503)
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute("SELECT player1_id,bet,status FROM backgammon_games WHERE game_id=?", (gid,))
         row = await cur.fetchone()
@@ -4203,6 +4210,7 @@ async def _wa_bg_invite_friend(request):
             friend_id,
             f"🎲 <b>{inviter_name}</b> приглашает тебя сыграть в длинные нарды!\n"
             f"Ставка: {bet} см · Игра #{gid}",
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="🎲 Принять вызов",
                                     web_app=WebAppInfo(url=f"{base_url}?bg={gid}"))

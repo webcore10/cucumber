@@ -1763,7 +1763,7 @@ async function doInviteToGame(gid){
   try {
     var r = await api('POST', '/api/backgammon/'+gid+'/invite/'+userId, {friend_id: fid});
     if (r.ok && r.data.success) showToast('✅ Приглашение отправлено!');
-    else showToast('❌ ' + (r.data.error||'Ошибка'), true);
+    else showToast('❌ ' + (r.data.detail || r.data.error || 'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
 }
 
