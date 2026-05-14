@@ -33,7 +33,7 @@ import pytz
 
 MSK = pytz.timezone("Europe/Moscow")
 
-TOKEN = "8707444896:AAGUN2mvuXDOzr5zgAKy2ga_9US2Pl70vik"
+TOKEN = "8779834120:AAE_gGbE5RgOd_vZj0XoQgjB-JmP0wJRq5o"
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
