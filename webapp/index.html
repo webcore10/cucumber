@@ -884,9 +884,16 @@ async function bizUpgrade(bid, level) {
   } catch(e){showToast('❌ Ошибка',true);}
 }
 
-function openBizCreate() {
+async function openBizCreate() {
   if(!userId){showToast('Открой через Telegram',true);return;}
-  if(!bizTypes.length){showToast('Загрузка...',false);return;}
+  if(!Array.isArray(bizTypes)||!bizTypes.length){
+    try {
+      const rt=await fetch('/api/business/types');
+      const parsed=await rt.json();
+      if(Array.isArray(parsed)) bizTypes=parsed;
+    } catch(e){}
+  }
+  if(!Array.isArray(bizTypes)||!bizTypes.length){showToast('❌ Не удалось загрузить типы предприятий',true);return;}
   const opts=bizTypes.map(t=>`<option value="${t.type}">${t.emoji} ${t.label} — ${t.cost} см (доход ${t.base_out}/цикл)</option>`).join('');
   openModal('🏗️ Открыть предприятие',
     `<select class="modal-inp" id="m-btype">${opts}</select>
@@ -993,18 +1000,21 @@ async function loadBackgammon() {
   el.innerHTML='<div class="spin-loader">Загрузка</div>';
   try {
     const r=await fetch(`/api/backgammon/lobby/${userId}`);
+    if(!r.ok){el.innerHTML='<div class="no-data">Ошибка сервера ('+r.status+'). Обновите бота.</div>';return;}
     const d=await r.json();
+    if(d.error){el.innerHTML='<div class="no-data">Ошибка: '+esc(d.detail||d.error)+'</div>';return;}
     if(d.my_game&&d.my_game.game_id){
       bgGameId=d.my_game.game_id;
       await loadBgGame();
     } else {
-      renderBgLobby(d.lobby);
+      renderBgLobby(Array.isArray(d.lobby)?d.lobby:[]);
     }
-  } catch(e){el.innerHTML='<div class="no-data">Ошибка загрузки</div>';}
+  } catch(e){el.innerHTML='<div class="no-data">Нет подключения к серверу</div>';}
 }
 
 function renderBgLobby(lobby) {
   const el=document.getElementById('bg-content');
+  const games=Array.isArray(lobby)?lobby:[];
   el.innerHTML=`
     <div class="card">
       <div class="sec">Создать игру</div>
@@ -1013,8 +1023,8 @@ function renderBgLobby(lobby) {
     </div>
     <div class="card">
       <div class="sec">Открытые игры</div>
-      ${!lobby.length?'<div class="no-data">Нет открытых игр</div>':
-        lobby.map(g=>`<div class="bg-lobby-item">
+      ${!games.length?'<div class="no-data">Нет открытых игр</div>':
+        games.map(g=>`<div class="bg-lobby-item">
           <div><div style="font-weight:700">Игра #${g.game_id}</div><div style="font-size:11px;color:var(--muted)">Ставка: ${g.bet} см</div></div>
           <button class="biz-btn primary" onclick="bgJoin(${g.game_id})">Войти</button>
         </div>`).join('')}
