@@ -443,10 +443,14 @@ function openModal(title, body, okTxt, fn){
 }
 function closeModal(){ document.getElementById('ov').classList.remove('on'); }
 async function api(method, url, body){
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  const opts = { method, headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true'
+  }};
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);
-  const d = await r.json();
+  let d = {};
+  try { d = await r.json(); } catch(e) {}
   return { ok: r.ok, status: r.status, data: d };
 }
 
@@ -626,22 +630,45 @@ async function openBox(){
 // ══════════════════════════════════════════════
 // STOCKS
 // ══════════════════════════════════════════════
+const FALLBACK_STOCKS = [
+  {ticker:'AAPL', name:'🍎 Apple',           price:0, change:0, type:'stock'},
+  {ticker:'TSLA', name:'⚡ Tesla',            price:0, change:0, type:'stock'},
+  {ticker:'NVDA', name:'🎮 NVIDIA',           price:0, change:0, type:'stock'},
+  {ticker:'AMZN', name:'📦 Amazon',           price:0, change:0, type:'stock'},
+  {ticker:'GOOGL', name:'🔍 Google',          price:0, change:0, type:'stock'},
+  {ticker:'MSFT', name:'🪟 Microsoft',        price:0, change:0, type:'stock'},
+  {ticker:'META', name:'👓 Meta',             price:0, change:0, type:'stock'},
+  {ticker:'NFLX', name:'🎬 Netflix',          price:0, change:0, type:'stock'},
+  {ticker:'BRKB', name:'💼 Berkshire',        price:0, change:0, type:'stock'},
+  {ticker:'JPM',  name:'🏦 JPMorgan',         price:0, change:0, type:'stock'},
+  {ticker:'V',    name:'💳 Visa',             price:0, change:0, type:'stock'},
+  {ticker:'JNJ',  name:'💊 Johnson&Johnson',  price:0, change:0, type:'stock'},
+  {ticker:'WMT',  name:'🛒 Walmart',          price:0, change:0, type:'stock'},
+  {ticker:'DIS',  name:'🏰 Disney',           price:0, change:0, type:'stock'},
+  {ticker:'PYPL', name:'🔵 PayPal',           price:0, change:0, type:'stock'},
+  {ticker:'INTC', name:'🔲 Intel',            price:0, change:0, type:'stock'},
+  {ticker:'AMD',  name:'🔴 AMD',              price:0, change:0, type:'stock'},
+  {ticker:'ORCL', name:'🗄️ Oracle',           price:0, change:0, type:'stock'},
+  {ticker:'CRM',  name:'☁️ Salesforce',       price:0, change:0, type:'stock'},
+  {ticker:'UBER', name:'🚗 Uber',             price:0, change:0, type:'stock'},
+];
 let stocksLoaded = false;
 async function loadStocks(){
   if (stocksLoaded && allPrices.length) return;
+  if (!allPrices.length) { allPrices = FALLBACK_STOCKS; renderStocks(); }
   document.getElementById('mkt-stocks').innerHTML = '<div class="spin">Загрузка акций...</div>';
   try {
     const { ok, data } = await api('GET', '/api/stocks');
     if (ok && Array.isArray(data) && data.length) {
       allPrices = data.filter(it => it.type !== 'crypto');
       stocksLoaded = true;
-      renderStocks();
     } else {
-      document.getElementById('mkt-stocks').innerHTML = '<div class="no-data">Цены обновляются — подождите</div>';
+      allPrices = FALLBACK_STOCKS;
     }
   } catch(e) {
-    document.getElementById('mkt-stocks').innerHTML = '<div class="no-data">Нет связи с сервером</div>';
+    allPrices = FALLBACK_STOCKS;
   }
+  renderStocks();
   setTimeout(() => { stocksLoaded = false; }, 60000);
 }
 function renderStocks(){
