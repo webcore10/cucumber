@@ -573,8 +573,8 @@ document.getElementById('box-btn').addEventListener('click', async () => {
 async function loadPrices() {
   try {
     const r=await fetch('/api/stocks');
-    allPrices=await r.json();
-    renderPriceLists();
+    const d=await r.json();
+    if(Array.isArray(d)) { allPrices=d; renderPriceLists(); }
   } catch(e) {}
   setTimeout(loadPrices,60000);
 }
@@ -763,9 +763,10 @@ async function loadBusiness() {
   if(!userId)return;
   document.getElementById('biz-list').innerHTML='<div class="spin-loader">Загрузка</div>';
   try {
-    if(!bizTypes.length){
+    if(!Array.isArray(bizTypes)||!bizTypes.length){
       const rt=await fetch('/api/business/types');
-      bizTypes=await rt.json();
+      const parsed=await rt.json();
+      if(Array.isArray(parsed)) bizTypes=parsed;
     }
     const r=await fetch(`/api/business/${userId}`);
     const d=await r.json();
