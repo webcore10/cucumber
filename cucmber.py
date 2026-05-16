@@ -43,6 +43,26 @@ ADMIN_ID = 5971748042
 BOT_USERNAME = ""
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
+COSMETIC_CATALOG = {
+    "hat": [
+        {"id":"hat_none",   "emoji":"",   "name":"Без шляпы",      "price":0},
+        {"id":"hat_cap",    "emoji":"🧢", "name":"Кепка",           "price":100},
+        {"id":"hat_straw",  "emoji":"👒", "name":"Соломенная",      "price":200},
+        {"id":"hat_cowboy", "emoji":"🤠", "name":"Ковбойская",      "price":250},
+        {"id":"hat_grad",   "emoji":"🎓", "name":"Академическая",   "price":300},
+        {"id":"hat_tophat", "emoji":"🎩", "name":"Цилиндр",         "price":500},
+        {"id":"hat_crown",  "emoji":"👑", "name":"Корона",          "price":2000},
+    ],
+    "accessory": [
+        {"id":"acc_none",    "emoji":"",   "name":"Без аксессуара", "price":0},
+        {"id":"acc_bow",     "emoji":"🎀", "name":"Бантик",         "price":100},
+        {"id":"acc_scarf",   "emoji":"🧣", "name":"Шарф",           "price":120},
+        {"id":"acc_glasses", "emoji":"🕶️", "name":"Очки",          "price":150},
+        {"id":"acc_medal",   "emoji":"🏅", "name":"Медаль",         "price":300},
+        {"id":"acc_gem",     "emoji":"💎", "name":"Алмаз",          "price":2000},
+    ],
+}
+
 
 def now_msk():
     return datetime.now(MSK)
@@ -340,6 +360,19 @@ async def init_db():
             author_id  INTEGER NOT NULL,
             text       TEXT NOT NULL,
             created_at TEXT NOT NULL
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_items (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            item_id TEXT NOT NULL,
+            UNIQUE(user_id, item_id)
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_cosmetics (
+            user_id   INTEGER PRIMARY KEY,
+            hat       TEXT DEFAULT 'hat_none',
+            accessory TEXT DEFAULT 'acc_none'
         )""")
         await db.commit()
 
@@ -4241,6 +4274,71 @@ async def _wa_bg_resign(request):
         await db.commit()
     return _json({"success":True})
 
+# ── Гардероб: API ─────────────────────────────────────────────────────────────
+
+async def _wa_cosmetics_get(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT hat, accessory FROM user_cosmetics WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        equipped = {"hat": row[0] if row else "hat_none", "accessory": row[1] if row else "acc_none"}
+        cur2 = await db.execute("SELECT item_id FROM user_items WHERE user_id=?", (uid,))
+        owned = [r[0] for r in await cur2.fetchall()]
+    owned_set = set(owned)
+    owned_set.add("hat_none"); owned_set.add("acc_none")
+    return _json({"equipped": equipped, "owned": list(owned_set), "catalog": COSMETIC_CATALOG})
+
+async def _wa_cosmetics_buy(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        item_id = str(body.get("item_id",""))
+    except: return _json({"error":"invalid"},400)
+    item = None
+    for _, items in COSMETIC_CATALOG.items():
+        for it in items:
+            if it["id"] == item_id:
+                item = it; break
+    if not item: return _json({"error":"not_found"},404)
+    if item["price"] == 0: return _json({"error":"free_item"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"no_user"},404)
+        if row[0] < item["price"]: return _json({"error":"insufficient","need":item["price"],"have":row[0]},400)
+        try:
+            await db.execute("INSERT INTO user_items (user_id, item_id) VALUES (?,?)", (uid, item_id))
+        except:
+            return _json({"error":"already_owned"},400)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (item["price"], uid))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_cosmetics_equip(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        slot = str(body.get("slot",""))
+        item_id = str(body.get("item_id",""))
+    except: return _json({"error":"invalid"},400)
+    if slot not in ("hat","accessory"): return _json({"error":"bad_slot"},400)
+    item = None
+    for it in COSMETIC_CATALOG.get(slot,[]):
+        if it["id"] == item_id: item = it; break
+    if not item: return _json({"error":"not_found"},404)
+    async with aiosqlite.connect(DB_NAME) as db:
+        if item["price"] > 0:
+            cur = await db.execute("SELECT 1 FROM user_items WHERE user_id=? AND item_id=?", (uid, item_id))
+            if not await cur.fetchone(): return _json({"error":"not_owned"},403)
+        await db.execute(
+            "INSERT INTO user_cosmetics(user_id, hat, accessory) VALUES(?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "+slot+"=excluded."+slot,
+            (uid, item_id if slot=="hat" else "hat_none", item_id if slot=="accessory" else "acc_none")
+        )
+        await db.commit()
+    return _json({"success":True})
+
 # ── Друзья: API ───────────────────────────────────────────────────────────────
 
 async def _wa_friends_list(request):
@@ -4686,6 +4784,9 @@ async def start_webapp():
     app.router.add_post("/api/friends/{user_id}/add", _wa_friends_add)
     app.router.add_post("/api/friends/{user_id}/accept/{friend_id}", _wa_friends_accept)
     app.router.add_post("/api/friends/{user_id}/remove/{friend_id}", _wa_friends_remove)
+    app.router.add_get("/api/cosmetics/{user_id}", _wa_cosmetics_get)
+    app.router.add_post("/api/cosmetics/{user_id}/buy", _wa_cosmetics_buy)
+    app.router.add_post("/api/cosmetics/{user_id}/equip", _wa_cosmetics_equip)
     app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
     runner = aio_web.AppRunner(app)
     await runner.setup()

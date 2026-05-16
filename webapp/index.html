@@ -227,6 +227,54 @@ canvas#price-chart{max-height:130px}
 .friend-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .friend-sz{font-size:11px;color:var(--g)}
 .friend-acts{display:flex;gap:4px;flex-shrink:0}
+
+/* SUB-NAV SCROLL (for many buttons) */
+.sub-nav{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.sub-nav::-webkit-scrollbar{display:none}
+.snb{flex:1 0 auto}
+
+/* CUKE OUTFIT */
+.cuke-hat-em{font-size:40px;line-height:1;min-height:40px;text-align:center}
+.cuke-acc-em{font-size:24px;line-height:1;min-height:24px;text-align:center;margin-top:2px}
+
+/* WARDROBE */
+.wrd-section{margin-bottom:14px}
+.wrd-section-title{font-size:11px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.wrd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.wrd-item{background:var(--bg3);border:2px solid var(--brd);border-radius:10px;padding:10px 4px;text-align:center;transition:border-color .15s}
+.wrd-item.equipped{border-color:var(--g)}
+.wrd-item-em{font-size:30px;line-height:1.2;min-height:36px}
+.wrd-item-name{font-size:10px;color:var(--mt);margin:2px 0}
+.wrd-item-price{font-size:11px;font-weight:700;color:var(--gold)}
+.wrd-item-owned{font-size:10px;font-weight:700;color:var(--b)}
+
+/* MINESWEEPER */
+.mine-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;justify-content:space-between;flex-wrap:wrap}
+.mine-grid{display:grid;gap:2px;width:-webkit-fit-content;width:fit-content;margin:0 auto 10px}
+.mine-cell{width:33px;height:33px;background:var(--bg3);border:1px solid var(--brd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .1s}
+.mine-cell.revealed{background:var(--bg);border-color:transparent;cursor:default}
+.mine-cell.boom{background:var(--rd);border-color:var(--r)}
+.mc1{color:var(--b)}.mc2{color:var(--g)}.mc3{color:var(--r)}.mc4{color:var(--pur)}.mc5{color:var(--gold)}.mc6{color:#79c0ff}.mc7{color:var(--txt)}.mc8{color:var(--mt)}
+
+/* TTT */
+.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:260px;margin:0 auto 12px}
+.ttt-cell{height:75px;background:var(--bg3);border:1px solid var(--brd);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer;transition:background .1s}
+.ttt-cell.win-cell{background:var(--gd);border-color:var(--g)}
+.ttt-score{display:flex;gap:20px;justify-content:center;margin-bottom:10px}
+.ttt-score-box{text-align:center}
+.ttt-score-v{font-size:26px;font-weight:800}
+.ttt-score-l{font-size:10px;color:var(--mt)}
+
+/* BATTLESHIP */
+.bs-wrap{text-align:center;overflow-x:auto;margin-bottom:8px}
+.bs-grid{display:inline-grid;gap:2px}
+.bs-cell{width:28px;height:28px;background:var(--bg3);border:1px solid var(--brd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.bs-hdr{background:transparent;border:none;color:var(--mt);font-size:10px;font-weight:700;cursor:default}
+.bs-ship{background:var(--bg4)}
+.bs-hit{background:var(--rd);border-color:var(--r);cursor:default}
+.bs-miss{background:var(--bg4);opacity:.45;cursor:default}
+.bs-label{font-size:11px;color:var(--mt);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:6px 0 3px}
+.bs-status{text-align:center;font-size:14px;font-weight:700;min-height:22px;margin:6px 0}
 </style>
 </head>
 <body>
@@ -256,7 +304,9 @@ canvas#price-chart{max-height:130px}
     </div>
   </div>
   <div class="cuke-hero">
+    <div class="cuke-hat-em" id="cuke-hat"></div>
     <div class="cuke-em">🥒</div>
+    <div class="cuke-acc-em" id="cuke-acc"></div>
     <div class="cuke-sz"><span id="sz">—</span><span class="cuke-unit"> см</span></div>
     <div class="cuke-lbl">размер огурца</div>
   </div>
@@ -324,7 +374,10 @@ canvas#price-chart{max-height:130px}
 <div class="page" id="pg-games">
   <div class="sub-nav">
     <button class="snb on" id="snb-slots" onclick="gamesSub('slots')">🎰 Слоты</button>
-    <button class="snb" id="snb-bg" onclick="gamesSub('bg')">🎲 Длинные нарды</button>
+    <button class="snb" id="snb-bg" onclick="gamesSub('bg')">🎲 Нарды</button>
+    <button class="snb" id="snb-battle" onclick="gamesSub('battle')">⚓ Бой</button>
+    <button class="snb" id="snb-ttt" onclick="gamesSub('ttt')">✖️ Крест.</button>
+    <button class="snb" id="snb-mine" onclick="gamesSub('mine')">💣 Сапёр</button>
   </div>
   <div id="gm-slots">
     <div class="card" style="text-align:center">
@@ -362,6 +415,33 @@ canvas#price-chart{max-height:130px}
   <div id="gm-bg" style="display:none">
     <div id="bg-content"><div class="spin">Загрузка нард...</div></div>
   </div>
+  <div id="gm-battle" style="display:none">
+    <div class="card" id="battle-content"><div class="spin">Загрузка...</div></div>
+  </div>
+  <div id="gm-ttt" style="display:none">
+    <div class="card">
+      <div class="card-title">✖️ Крестики-нолики</div>
+      <div class="ttt-score">
+        <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sp">0</div><div class="ttt-score-l">Ты</div></div>
+        <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sai">0</div><div class="ttt-score-l">ИИ</div></div>
+      </div>
+      <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:10px" id="ttt-status">Нажми «Новая игра»</div>
+      <div class="ttt-board" id="ttt-board"></div>
+      <button class="btn btn-ghost btn-full" onclick="initTTT()">🔄 Новая игра</button>
+    </div>
+  </div>
+  <div id="gm-mine" style="display:none">
+    <div class="card">
+      <div class="card-title">💣 Сапёр</div>
+      <div class="mine-bar">
+        <span id="mine-count">10 💣</span>
+        <button class="btn btn-ghost btn-sm" id="mine-flag-btn" onclick="mineToggleFlagMode()">🚩 Флаг</button>
+        <button class="btn btn-ghost btn-sm" onclick="initMine()">🔄 Новая</button>
+      </div>
+      <div style="text-align:center;font-size:13px;font-weight:700;margin-bottom:8px;min-height:20px" id="mine-status"></div>
+      <div id="mine-grid-wrap" style="overflow-x:auto;text-align:center"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ══ MORE ══ -->
@@ -370,6 +450,7 @@ canvas#price-chart{max-height:130px}
     <button class="snb on" id="snb-bank" onclick="moreSub('bank')">🏦 Банк</button>
     <button class="snb" id="snb-forbes" onclick="moreSub('forbes')">🏆 Forbes</button>
     <button class="snb" id="snb-friends" onclick="moreSub('friends')">👥 Друзья</button>
+    <button class="snb" id="snb-wardrobe" onclick="moreSub('wardrobe')">👗 Гардероб</button>
   </div>
   <div id="mr-friends" style="display:none">
     <div class="card">
@@ -428,6 +509,14 @@ canvas#price-chart{max-height:130px}
       <div class="card-title">🏆 Топ-20 игроков</div>
       <div id="forbes-list"><div class="spin">Загрузка...</div></div>
     </div>
+  </div>
+  <div id="mr-wardrobe" style="display:none">
+    <div class="card" style="text-align:center;padding-bottom:8px">
+      <div class="cuke-hat-em" id="wrd-preview-hat"></div>
+      <div style="font-size:56px;line-height:1">🥒</div>
+      <div class="cuke-acc-em" id="wrd-preview-acc"></div>
+    </div>
+    <div class="card" id="wardrobe-content"><div class="spin">Загрузка...</div></div>
   </div>
 </div>
 
@@ -491,7 +580,7 @@ window.addEventListener('load', async () => {
     document.getElementById('hdr-name').textContent = userId ? 'Тест' : 'Гость';
   }
   if (userId) {
-    await loadUser(); loadBoxCd(); loadStocks(); loadBank(); loadNews();
+    await loadUser(); loadBoxCd(); loadStocks(); loadBank(); loadNews(); loadCosmetics();
     // Handle deep-link invite to backgammon game
     const bgParam = new URLSearchParams(window.location.search).get('bg');
     if (bgParam) {
@@ -566,6 +655,7 @@ function tab(name){
     if (curMoreSub === 'bank') loadBank();
     else if (curMoreSub === 'forbes') loadForbes();
     else if (curMoreSub === 'friends') loadFriends();
+    else if (curMoreSub === 'wardrobe') loadWardrobe();
   }
 }
 
@@ -587,21 +677,25 @@ function bizSub(name){
 }
 function gamesSub(name){
   curGamesSub = name;
-  ['slots','bg'].forEach(n => {
+  ['slots','bg','battle','ttt','mine'].forEach(function(n){
     document.getElementById('snb-'+n).classList.toggle('on', n===name);
     document.getElementById('gm-'+n).style.display = n===name?'':'none';
   });
   if (name === 'bg' && !bgLoaded) loadBg();
+  if (name === 'battle' && !bsInited) initBattleship();
+  if (name === 'ttt' && !tttInited) initTTT();
+  if (name === 'mine' && !mineInited) initMine();
 }
 function moreSub(name){
   curMoreSub = name;
-  ['bank','forbes','friends'].forEach(n => {
+  ['bank','forbes','friends','wardrobe'].forEach(function(n){
     document.getElementById('snb-'+n).classList.toggle('on', n===name);
     document.getElementById('mr-'+n).style.display = n===name?'':'none';
   });
   if (name === 'bank') loadBank();
   if (name === 'forbes') loadForbes();
   if (name === 'friends') loadFriends();
+  if (name === 'wardrobe') loadWardrobe();
 }
 
 // ══════════════════════════════════════════════
@@ -1738,6 +1832,333 @@ async function bgResign(gid){
     if (r.ok && r.data.success) { bgGameId = null; bgLoaded = false; loadBg(); }
     else showToast('❌ ' + (r.data.error||'Ошибка'), true);
   } catch(e) { showToast('❌ Нет связи', true); }
+}
+
+// ══ MINESWEEPER ══════════════════════════════════════════════════════════════
+var mineCells = [], mineGameOver = false, mineFirstClick = true, mineFlagMode = false, mineLastBoom = -1, mineInited = false;
+var MINE_R = 9, MINE_C = 9, MINE_BOMBS = 10;
+
+function initMine(){
+  mineInited = true; mineGameOver = false; mineFirstClick = true; mineFlagMode = false; mineLastBoom = -1;
+  mineCells = [];
+  for (var i=0;i<MINE_R*MINE_C;i++) mineCells.push({mine:false,revealed:false,flagged:false,adj:0});
+  document.getElementById('mine-status').textContent = '';
+  document.getElementById('mine-flag-btn').style.background = '';
+  document.getElementById('mine-flag-btn').style.color = '';
+  renderMine(false);
+}
+function mineAdj(idx){
+  var row=Math.floor(idx/MINE_C), col=idx%MINE_C, cnt=0;
+  for (var dr=-1;dr<=1;dr++) for (var dc=-1;dc<=1;dc++){
+    if (dr===0&&dc===0) continue;
+    var r2=row+dr, c2=col+dc;
+    if (r2>=0&&r2<MINE_R&&c2>=0&&c2<MINE_C&&mineCells[r2*MINE_C+c2].mine) cnt++;
+  }
+  return cnt;
+}
+function mineRevealFlood(idx){
+  var queue=[idx];
+  while(queue.length){
+    var cur=queue.pop(), c=mineCells[cur];
+    if(c.revealed||c.flagged||c.mine) continue;
+    c.revealed=true;
+    if(c.adj===0){
+      var row=Math.floor(cur/MINE_C), col=cur%MINE_C;
+      for(var dr=-1;dr<=1;dr++) for(var dc=-1;dc<=1;dc++){
+        var r2=row+dr, c2=col+dc;
+        if(r2>=0&&r2<MINE_R&&c2>=0&&c2<MINE_C) queue.push(r2*MINE_C+c2);
+      }
+    }
+  }
+}
+function mineClickCell(idx){
+  if(mineGameOver) return;
+  if(mineFlagMode){ mineToggleFlag(idx); return; }
+  var c=mineCells[idx];
+  if(c.revealed||c.flagged) return;
+  if(mineFirstClick){
+    mineFirstClick=false;
+    var placed=0;
+    while(placed<MINE_BOMBS){
+      var r2=Math.floor(Math.random()*MINE_R*MINE_C);
+      if(!mineCells[r2].mine&&r2!==idx){mineCells[r2].mine=true;placed++;}
+    }
+    for(var i=0;i<MINE_R*MINE_C;i++) mineCells[i].adj=mineAdj(i);
+  }
+  if(c.mine){
+    mineGameOver=true; mineLastBoom=idx; c.revealed=true;
+    renderMine(true);
+    document.getElementById('mine-status').textContent='💥 Взрыв! Проиграл!';
+    return;
+  }
+  mineRevealFlood(idx);
+  var won=true;
+  for(var i=0;i<MINE_R*MINE_C;i++) if(!mineCells[i].mine&&!mineCells[i].revealed){won=false;break;}
+  if(won){mineGameOver=true;document.getElementById('mine-status').textContent='🏆 Победа!';}
+  renderMine(false);
+}
+function mineToggleFlag(idx){
+  var c=mineCells[idx]; if(c.revealed) return;
+  c.flagged=!c.flagged; renderMine(false);
+}
+function mineToggleFlagMode(){
+  mineFlagMode=!mineFlagMode;
+  document.getElementById('mine-flag-btn').style.background=mineFlagMode?'var(--r)':'';
+  document.getElementById('mine-flag-btn').style.color=mineFlagMode?'#fff':'';
+}
+function renderMine(showAll){
+  var flags=0;
+  for(var i=0;i<mineCells.length;i++) if(mineCells[i].flagged) flags++;
+  document.getElementById('mine-count').textContent=(MINE_BOMBS-flags)+' 💣';
+  var html='<div class="mine-grid" style="grid-template-columns:repeat('+MINE_C+',1fr)">';
+  for(var i=0;i<MINE_R*MINE_C;i++){
+    var c=mineCells[i], cls='mine-cell', cont='';
+    if(c.flagged&&!c.revealed){ cont='🚩'; }
+    else if(c.mine&&(showAll||c.revealed)){ cls+=(i===mineLastBoom?' boom':' revealed'); cont='💣'; }
+    else if(c.revealed){ cls+=' revealed'; if(c.adj>0) cont='<span class="mc'+c.adj+'">'+c.adj+'</span>'; }
+    html+='<div class="'+cls+'" onclick="mineClickCell('+i+')">'+cont+'</div>';
+  }
+  html+='</div>';
+  document.getElementById('mine-grid-wrap').innerHTML=html;
+}
+
+// ══ TIC-TAC-TOE ══════════════════════════════════════════════════════════════
+var tttBoard=[], tttGameOver=false, tttWinLine=null, tttScoreP=0, tttScoreAI=0, tttInited=false;
+var TTT_LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function initTTT(){
+  tttInited=true; tttBoard=['','','','','','','','','']; tttGameOver=false; tttWinLine=null;
+  document.getElementById('ttt-status').textContent='Твой ход ❌';
+  renderTTT();
+}
+function tttCheckWinner(board,p){
+  for(var i=0;i<TTT_LINES.length;i++){
+    var l=TTT_LINES[i];
+    if(board[l[0]]===p&&board[l[1]]===p&&board[l[2]]===p) return l;
+  }
+  return null;
+}
+function tttMinimax(board,player,depth){
+  var win=tttCheckWinner(board,'O');
+  if(win) return 10-depth;
+  win=tttCheckWinner(board,'X');
+  if(win) return depth-10;
+  var empty=[];
+  for(var i=0;i<9;i++) if(!board[i]) empty.push(i);
+  if(!empty.length) return 0;
+  var opp=player==='O'?'X':'O';
+  var best=player==='O'?-100:100;
+  for(var i=0;i<empty.length;i++){
+    board[empty[i]]=player;
+    var score=tttMinimax(board,opp,depth+1);
+    board[empty[i]]='';
+    if(player==='O'&&score>best) best=score;
+    if(player==='X'&&score<best) best=score;
+  }
+  return best;
+}
+function tttBestMove(){
+  var best=-100, idx=0, empty=[];
+  for(var i=0;i<9;i++) if(!tttBoard[i]) empty.push(i);
+  for(var i=0;i<empty.length;i++){
+    tttBoard[empty[i]]='O';
+    var score=tttMinimax(tttBoard,'X',0);
+    tttBoard[empty[i]]='';
+    if(score>best){best=score;idx=empty[i];}
+  }
+  return idx;
+}
+function tttClick(i){
+  if(tttGameOver||tttBoard[i]) return;
+  tttBoard[i]='X';
+  var win=tttCheckWinner(tttBoard,'X');
+  if(win){tttWinLine=win;tttGameOver=true;tttScoreP++;renderTTT();document.getElementById('ttt-status').textContent='🏆 Ты победил!';updateTTTScore();return;}
+  var empty=false; for(var j=0;j<9;j++) if(!tttBoard[j]){empty=true;break;}
+  if(!empty){tttGameOver=true;renderTTT();document.getElementById('ttt-status').textContent='🤝 Ничья!';return;}
+  document.getElementById('ttt-status').textContent='Думает... 🤖';
+  renderTTT();
+  setTimeout(function(){
+    var mv=tttBestMove(); tttBoard[mv]='O';
+    var win2=tttCheckWinner(tttBoard,'O');
+    if(win2){tttWinLine=win2;tttGameOver=true;tttScoreAI++;renderTTT();document.getElementById('ttt-status').textContent='🤖 ИИ победил!';updateTTTScore();return;}
+    var empty2=false; for(var j=0;j<9;j++) if(!tttBoard[j]){empty2=true;break;}
+    if(!empty2){tttGameOver=true;renderTTT();document.getElementById('ttt-status').textContent='🤝 Ничья!';return;}
+    document.getElementById('ttt-status').textContent='Твой ход ❌';
+    renderTTT();
+  },350);
+}
+function updateTTTScore(){
+  document.getElementById('ttt-sp').textContent=tttScoreP;
+  document.getElementById('ttt-sai').textContent=tttScoreAI;
+}
+function renderTTT(){
+  var bd=document.getElementById('ttt-board'); if(!bd) return;
+  var winSet={};
+  if(tttWinLine) for(var wi=0;wi<tttWinLine.length;wi++) winSet[tttWinLine[wi]]=true;
+  var html='';
+  for(var i=0;i<9;i++){
+    var cls='ttt-cell'+(tttWinLine&&winSet[i]?' win-cell':'');
+    var sym=tttBoard[i]==='X'?'❌':(tttBoard[i]==='O'?'⭕':'');
+    html+='<div class="'+cls+'" onclick="tttClick('+i+')">'+sym+'</div>';
+  }
+  bd.innerHTML=html;
+}
+
+// ══ BATTLESHIP ════════════════════════════════════════════════════════════════
+var bsP=[], bsE=[], bsPShots=[], bsEShots=[], bsHunt=[], bsGameOver=false, bsInited=false;
+var BS_SHIPS=[4,3,3,2,2,1,1], BS_N=8, BS_SIZE=BS_N*BS_N;
+var BS_TOTAL=0; for(var _bsi=0;_bsi<BS_SHIPS.length;_bsi++) BS_TOTAL+=BS_SHIPS[_bsi];
+
+function bsPlaceShips(board){
+  for(var s=0;s<BS_SHIPS.length;s++){
+    var sz=BS_SHIPS[s], placed=false, tries=0;
+    while(!placed&&tries<2000){
+      tries++;
+      var horiz=Math.random()<0.5;
+      var row=Math.floor(Math.random()*BS_N), col=Math.floor(Math.random()*BS_N);
+      var ok=true;
+      if(horiz){
+        if(col+sz>BS_N) continue;
+        for(var c=col;c<col+sz;c++) if(board[row*BS_N+c]){ok=false;break;}
+        if(ok){for(var c=col;c<col+sz;c++) board[row*BS_N+c]=1; placed=true;}
+      } else {
+        if(row+sz>BS_N) continue;
+        for(var r=row;r<row+sz;r++) if(board[r*BS_N+col]){ok=false;break;}
+        if(ok){for(var r=row;r<row+sz;r++) board[r*BS_N+col]=1; placed=true;}
+      }
+    }
+  }
+}
+function initBattleship(){
+  bsInited=true; bsGameOver=false; bsHunt=[];
+  bsP=[]; bsE=[]; bsPShots=[]; bsEShots=[];
+  for(var i=0;i<BS_SIZE;i++){bsP.push(0);bsE.push(0);bsPShots.push(false);bsEShots.push(false);}
+  bsPlaceShips(bsP); bsPlaceShips(bsE);
+  renderBattleship('Стреляй по вражеским водам!');
+}
+function bsShoot(idx){
+  if(bsGameOver||bsPShots[idx]) return;
+  bsPShots[idx]=true;
+  var eSunk=0; for(var i=0;i<BS_SIZE;i++) if(bsE[i]&&bsPShots[i]) eSunk++;
+  if(eSunk>=BS_TOTAL){bsGameOver=true;renderBattleship('🏆 Победа! Флот врага уничтожен!');return;}
+  var eIdx=bsEnemyShoot();
+  bsEShots[eIdx]=true;
+  if(bsP[eIdx]){
+    var r=Math.floor(eIdx/BS_N), c=eIdx%BS_N;
+    var dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+    for(var d=0;d<dirs.length;d++){
+      var r2=r+dirs[d][0], c2=c+dirs[d][1];
+      if(r2>=0&&r2<BS_N&&c2>=0&&c2<BS_N&&!bsEShots[r2*BS_N+c2]) bsHunt.push(r2*BS_N+c2);
+    }
+  }
+  var pSunk=0; for(var i=0;i<BS_SIZE;i++) if(bsP[i]&&bsEShots[i]) pSunk++;
+  if(pSunk>=BS_TOTAL){bsGameOver=true;renderBattleship('💀 Поражение! Твой флот уничтожен!');return;}
+  var hitMsg=bsP[eIdx]?'🎯 Враг попал по твоему кораблю!':'';
+  renderBattleship(hitMsg||(bsE[idx]?'💥 Попал!':'Промах...'));
+}
+function bsEnemyShoot(){
+  var idx; var avail=[];
+  for(var i=0;i<bsHunt.length;i++) if(!bsEShots[bsHunt[i]]) avail.push(bsHunt[i]);
+  bsHunt=avail;
+  if(bsHunt.length){idx=bsHunt.shift();} else {
+    var pool=[];
+    for(var i=0;i<BS_SIZE;i++) if(!bsEShots[i]) pool.push(i);
+    idx=pool[Math.floor(Math.random()*pool.length)];
+  }
+  return idx;
+}
+function renderBattleship(msg){
+  var el=document.getElementById('battle-content'); if(!el) return;
+  var COLS='12345678', ROWS='ABCDEFGH';
+  function grid(board,shots,showShips,clickFn){
+    var h='<div class="bs-wrap"><div class="bs-grid" style="grid-template-columns:repeat('+(BS_N+1)+',28px)">';
+    h+='<div class="bs-cell bs-hdr"></div>';
+    for(var c=0;c<BS_N;c++) h+='<div class="bs-cell bs-hdr">'+COLS[c]+'</div>';
+    for(var r=0;r<BS_N;r++){
+      h+='<div class="bs-cell bs-hdr">'+ROWS[r]+'</div>';
+      for(var c=0;c<BS_N;c++){
+        var idx=r*BS_N+c, cls='bs-cell', cont='';
+        if(shots[idx]){ if(board[idx]){cls+=' bs-hit';cont='🔥';} else {cls+=' bs-miss';cont='·';} }
+        else if(showShips&&board[idx]) cls+=' bs-ship';
+        var oc=clickFn&&!shots[idx]&&!bsGameOver?' onclick="'+clickFn+'('+idx+')"':'';
+        h+='<div class="'+cls+'"'+oc+'>'+cont+'</div>';
+      }
+    }
+    return h+'</div></div>';
+  }
+  var pSunk=0,eSunk=0;
+  for(var i=0;i<BS_SIZE;i++){if(bsP[i]&&bsEShots[i])pSunk++;if(bsE[i]&&bsPShots[i])eSunk++;}
+  var html='<div class="card-title">⚓ Морской бой</div>';
+  html+='<div class="bs-label">Твои воды (потери: '+pSunk+'/'+BS_TOTAL+')</div>'+grid(bsP,bsEShots,true,null);
+  html+='<div class="bs-label">Воды врага (уничтожено: '+eSunk+'/'+BS_TOTAL+')</div>'+grid(bsE,bsPShots,false,'bsShoot');
+  html+='<div class="bs-status">'+(msg||'')+'</div>';
+  html+='<button class="btn btn-ghost btn-full" onclick="initBattleship()">🔄 Новая игра</button>';
+  el.innerHTML=html;
+}
+
+// ══ WARDROBE ══════════════════════════════════════════════════════════════════
+var cosmeticsData = null;
+
+async function loadCosmetics(){
+  if(!userId) return;
+  try{
+    var r=await api('GET','/api/cosmetics/'+userId);
+    if(r.ok){cosmeticsData=r.data; renderCukeOutfit();}
+  }catch(e){}
+}
+function renderCukeOutfit(){
+  if(!cosmeticsData) return;
+  var eq=cosmeticsData.equipped||{}, cat=cosmeticsData.catalog||{};
+  var hatEm='', accEm='';
+  var hats=cat.hat||[];
+  for(var i=0;i<hats.length;i++) if(hats[i].id===eq.hat){hatEm=hats[i].emoji||'';break;}
+  var accs=cat.accessory||[];
+  for(var i=0;i<accs.length;i++) if(accs[i].id===eq.accessory){accEm=accs[i].emoji||'';break;}
+  var h=document.getElementById('cuke-hat'); if(h) h.textContent=hatEm;
+  var a=document.getElementById('cuke-acc'); if(a) a.textContent=accEm;
+  var ph=document.getElementById('wrd-preview-hat'); if(ph) ph.textContent=hatEm;
+  var pa=document.getElementById('wrd-preview-acc'); if(pa) pa.textContent=accEm;
+}
+async function loadWardrobe(){
+  if(!userId) return;
+  var el=document.getElementById('wardrobe-content'); if(!el) return;
+  el.innerHTML='<div class="spin">Загрузка...</div>';
+  try{
+    var r=await api('GET','/api/cosmetics/'+userId);
+    if(!r.ok){el.innerHTML='<div class="no-data">Ошибка</div>';return;}
+    cosmeticsData=r.data; renderCukeOutfit(); renderWardrobe();
+  }catch(e){el.innerHTML='<div class="no-data">Нет связи</div>';}
+}
+function renderWardrobe(){
+  var el=document.getElementById('wardrobe-content'); if(!el||!cosmeticsData) return;
+  var cat=cosmeticsData.catalog||{}, owned=cosmeticsData.owned||[], eq=cosmeticsData.equipped||{};
+  var ownedSet={};
+  for(var i=0;i<owned.length;i++) ownedSet[owned[i]]=true;
+  var html='';
+  var slots=[{key:'hat',label:'🎩 Шляпы'},{key:'accessory',label:'💫 Аксессуары'}];
+  for(var s=0;s<slots.length;s++){
+    var slot=slots[s].key, items=cat[slot]||[];
+    html+='<div class="wrd-section"><div class="wrd-section-title">'+slots[s].label+'</div><div class="wrd-grid">';
+    for(var i=0;i<items.length;i++){
+      var it=items[i], isEq=eq[slot]===it.id, isOwned=ownedSet[it.id]||it.price===0;
+      var cls='wrd-item'+(isEq?' equipped':'');
+      var priceHtml=it.price===0?'<div class="wrd-item-owned">Бесплатно</div>':(isOwned?'<div class="wrd-item-owned">✅ Есть</div>':'<div class="wrd-item-price">'+fmt(it.price)+' см</div>');
+      var btnHtml=isEq?'<div style="font-size:10px;color:var(--g);margin-top:4px">Надето</div>':(isOwned?'<button class="btn btn-g btn-sm btn-full" style="margin-top:4px;padding:4px 0" onclick="wardrobeEquip(\''+slot+'\',\''+it.id+'\')">Надеть</button>':'<button class="btn btn-gold btn-sm btn-full" style="margin-top:4px;padding:4px 0" onclick="wardrobeBuy(\''+slot+'\',\''+it.id+'\')">Купить</button>');
+      html+='<div class="'+cls+'"><div class="wrd-item-em">'+(it.emoji||'〇')+'</div><div class="wrd-item-name">'+esc(it.name)+'</div>'+priceHtml+btnHtml+'</div>';
+    }
+    html+='</div></div>';
+  }
+  el.innerHTML=html;
+}
+async function wardrobeBuy(slot,itemId){
+  var r=await api('POST','/api/cosmetics/'+userId+'/buy',{item_id:itemId});
+  if(r.ok&&r.data.success){showToast('✅ Куплено!');loadWardrobe();}
+  else showToast('❌ '+(r.data.error==='insufficient'?'Недостаточно см (нужно '+r.data.need+')':(r.data.error||'Ошибка')),true);
+}
+async function wardrobeEquip(slot,itemId){
+  var r=await api('POST','/api/cosmetics/'+userId+'/equip',{slot:slot,item_id:itemId});
+  if(r.ok&&r.data.success){showToast('✅ Надето!');loadWardrobe();}
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
 }
 
 function showInviteModal(gid){
