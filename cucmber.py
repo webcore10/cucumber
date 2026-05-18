@@ -43,6 +43,9 @@ ADMIN_ID = 5971748042
 BOT_USERNAME = ""
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "")  # set via env: WEBAPP_URL=https://your-ngrok-url.ngrok.io
 
+GAME_REWARDS = {"ttt": 15, "mine": 30, "battle": 60}
+BS_TOTAL_CELLS = 16  # sum of ship sizes: 4+3+3+2+2+1+1
+
 COSMETIC_CATALOG = {
     "hat": [
         {"id":"hat_none",   "emoji":"",   "name":"Без шляпы",      "price":0},
@@ -373,6 +376,53 @@ async def init_db():
             user_id   INTEGER PRIMARY KEY,
             hat       TEXT DEFAULT 'hat_none',
             accessory TEXT DEFAULT 'acc_none'
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS game_history (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            game_type  TEXT NOT NULL,
+            result     TEXT NOT NULL,
+            amount     INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS ttt_games (
+            game_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            player1_id INTEGER NOT NULL,
+            player2_id INTEGER,
+            board      TEXT DEFAULT ',,,,,,,,',
+            current    INTEGER DEFAULT 1,
+            status     TEXT DEFAULT 'waiting',
+            bet        INTEGER DEFAULT 0,
+            winner_id  INTEGER,
+            created_at TEXT NOT NULL
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS bs_games (
+            game_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            player1_id INTEGER NOT NULL,
+            player2_id INTEGER,
+            p1_board   TEXT NOT NULL,
+            p2_board   TEXT NOT NULL,
+            p1_shots   TEXT NOT NULL,
+            p2_shots   TEXT NOT NULL,
+            current    INTEGER DEFAULT 1,
+            status     TEXT DEFAULT 'waiting',
+            bet        INTEGER DEFAULT 0,
+            winner_id  INTEGER,
+            created_at TEXT NOT NULL
+        )""")
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS tx_log (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id          INTEGER NOT NULL,
+            type             TEXT NOT NULL,
+            amount           INTEGER NOT NULL,
+            counterpart_id   INTEGER,
+            counterpart_name TEXT,
+            description      TEXT,
+            created_at       TEXT NOT NULL
         )""")
         await db.commit()
 
@@ -3792,6 +3842,9 @@ async def _wa_bank_take_loan(request):
         await db.execute("UPDATE users SET loan=?,loan_date=?,size=size+? WHERE user_id=?",
                          (amount, now.isoformat(), amount, uid))
         await db.execute("UPDATE bank SET capital=capital-? WHERE id=1", (amount,))
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,description,created_at) VALUES (?,?,?,?,?)",
+            (uid, "loan", amount, "Кредит от банка", now.isoformat()))
         await db.commit()
     return _json({"success":True,"loan":amount,"new_size":size+amount})
 
@@ -3808,6 +3861,9 @@ async def _wa_bank_repay_loan(request):
         if size < loan: return _json({"error":"insufficient","need":loan,"have":size},400)
         await db.execute("UPDATE users SET loan=0,loan_date=NULL,size=size-? WHERE user_id=?", (loan, uid))
         await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (loan,))
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,description,created_at) VALUES (?,?,?,?,?)",
+            (uid, "loan_repay", -loan, "Погашение кредита", now_msk().isoformat()))
         await db.commit()
     return _json({"success":True,"repaid":loan,"new_size":size-loan})
 
@@ -3835,6 +3891,9 @@ async def _wa_bank_deposit(request):
             "INSERT INTO deposits (user_id,amount,rate,days,created_at,matures_at) VALUES (?,?,?,?,?,?)",
             (uid, amount, rate, days, now.isoformat(), matures_at))
         did = cur2.lastrowid
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,description,created_at) VALUES (?,?,?,?,?)",
+            (uid, "deposit", -amount, f"Вклад на {days} дн. (+{int(rate*100)}%)", now.isoformat()))
         await db.commit()
     interest = int(amount * rate)
     return _json({"success":True,"deposit_id":did,"amount":amount,
@@ -3865,8 +3924,73 @@ async def _wa_bank_claim(request):
         withdraw = min(total, cap)
         if withdraw > 0:
             await db.execute("UPDATE bank SET capital=capital-? WHERE id=1", (withdraw,))
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,description,created_at) VALUES (?,?,?,?,?)",
+            (uid, "deposit_claim", total, "Вклад с процентами", now_msk().isoformat()))
         await db.commit()
     return _json({"success":True,"total":total})
+
+
+async def _wa_tx_log(request):
+    try:
+        uid = int(request.match_info["user_id"])
+    except:
+        return _json({"error": "invalid"}, 400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT type,amount,counterpart_id,counterpart_name,description,created_at "
+            "FROM tx_log WHERE user_id=? ORDER BY id DESC LIMIT 50",
+            (uid,))
+        rows = await cur.fetchall()
+    return _json({"transactions": [dict(r) for r in rows]})
+
+
+async def _wa_transfer(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json()
+        to_id = int(body.get("to_id", 0))
+        amount = int(body.get("amount", 0))
+    except:
+        return _json({"error": "invalid"}, 400)
+    if amount <= 0:
+        return _json({"error": "amount_zero"}, 400)
+    if uid == to_id:
+        return _json({"error": "self_transfer"}, 400)
+    commission = max(1, round(amount * 0.05))
+    total_cost = amount + commission
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size, name FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row:
+            return _json({"error": "sender_not_found"}, 404)
+        size, sender_name = row[0] or 0, row[1] or "Игрок"
+        if size < total_cost:
+            return _json({"error": "insufficient", "need": total_cost, "has": size}, 400)
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (to_id,))
+        row2 = await cur2.fetchone()
+        if not row2:
+            return _json({"error": "receiver_not_found"}, 404)
+        await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (total_cost, uid))
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (amount, to_id))
+        await db.execute("UPDATE bank SET capital=capital+? WHERE id=1", (commission,))
+        cur3 = await db.execute("SELECT name FROM users WHERE user_id=?", (to_id,))
+        row3 = await cur3.fetchone()
+        receiver_name = row3[0] if row3 else "Игрок"
+        now_str = now_msk().isoformat()
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,counterpart_id,counterpart_name,created_at) VALUES (?,?,?,?,?,?)",
+            (uid, "transfer_out", -(total_cost), to_id, receiver_name, now_str))
+        await db.execute(
+            "INSERT INTO tx_log (user_id,type,amount,counterpart_id,counterpart_name,created_at) VALUES (?,?,?,?,?,?)",
+            (to_id, "transfer_in", amount, uid, sender_name, now_str))
+        await db.commit()
+    try:
+        await bot.send_message(to_id, f"💸 <b>Входящий перевод!</b>\n👤 От: {sender_name}\n💰 Сумма: <b>+{amount} см</b>")
+    except Exception:
+        pass
+    return _json({"success": True, "sent": amount, "commission": commission, "new_size": size - total_cost})
 
 
 _SLOT_SYMS = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "🥒"]
@@ -4339,6 +4463,474 @@ async def _wa_cosmetics_equip(request):
         await db.commit()
     return _json({"success":True})
 
+# ── TTT helpers ───────────────────────────────────────────────────────────────
+
+def _get_base_url(request):
+    if WEBAPP_URL:
+        return WEBAPP_URL
+    fwd_host = request.headers.get("X-Forwarded-Host") or request.headers.get("Host", "")
+    fwd_proto = request.headers.get("X-Forwarded-Proto", "https")
+    return f"{fwd_proto}://{fwd_host}" if fwd_host else ""
+
+def _ttt_winner(board_str):
+    b = board_str.split(",")
+    lines = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
+    for a,c,d in lines:
+        if b[a] and b[a]==b[c]==b[d]: return b[a]
+    return None
+
+# ── BS helpers ────────────────────────────────────────────────────────────────
+
+def _bs_place():
+    grid = [0]*64
+    ships = [4,3,3,2,2,1,1]
+    for size in ships:
+        placed = False
+        attempts = 0
+        while not placed and attempts < 1000:
+            attempts += 1
+            horiz = random.choice([True, False])
+            if horiz:
+                r = random.randint(0,7); c = random.randint(0, 7-size)
+            else:
+                r = random.randint(0, 7-size); c = random.randint(0,7)
+            cells = [(r, c+i) if horiz else (r+i, c) for i in range(size)]
+            ok = True
+            for rr,cc in cells:
+                for dr in [-1,0,1]:
+                    for dc in [-1,0,1]:
+                        nr,nc = rr+dr,cc+dc
+                        if 0<=nr<8 and 0<=nc<8 and grid[nr*8+nc]:
+                            ok = False
+            if ok:
+                for rr,cc in cells: grid[rr*8+cc] = 1
+                placed = True
+    return ",".join(str(x) for x in grid)
+
+def _bs_results(board_str, shots_str):
+    board = [int(x) for x in board_str.split(",")]
+    shots = [int(x) for x in shots_str.split(",")]
+    result = []
+    for i in range(64):
+        if shots[i] == 0: result.append(0)
+        elif board[i] == 1: result.append(2)
+        else: result.append(1)
+    return result
+
+# ── TTT multiplayer ────────────────────────────────────────────────────────────
+
+async def _wa_ttt_lobby(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT game_id, player1_id, bet, created_at FROM ttt_games WHERE status='waiting' AND player1_id!=? ORDER BY game_id DESC LIMIT 20",
+            (uid,))
+        rows = await cur.fetchall()
+        lobby = []
+        for r in rows:
+            cur2 = await db.execute("SELECT name FROM users WHERE user_id=?", (r[1],))
+            n = await cur2.fetchone()
+            lobby.append({"game_id":r[0],"host":n[0] if n else "Игрок","bet":r[3]})
+    return _json({"lobby":lobby})
+
+async def _wa_ttt_create(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); bet = int(body.get("bet",0))
+    except: return _json({"error":"invalid"},400)
+    if bet < 0: return _json({"error":"bad_bet"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        if (row[0] or 0) < bet: return _json({"error":"no_funds"},400)
+        if bet > 0:
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (bet, uid))
+        cur2 = await db.execute(
+            "INSERT INTO ttt_games(player1_id, board, current, status, bet, created_at) VALUES(?,',,,,,,,',1,'waiting',?,?)",
+            (uid, bet, now_msk().isoformat()))
+        gid = cur2.lastrowid
+        await db.commit()
+    return _json({"success":True,"game_id":gid})
+
+async def _wa_ttt_join(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        gid = int(request.match_info["game_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT player1_id, status, bet FROM ttt_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        if row[1] != 'waiting': return _json({"error":"not_waiting"},400)
+        if row[0] == uid: return _json({"error":"self"},400)
+        bet = row[2] or 0
+        if bet > 0:
+            cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+            r2 = await cur2.fetchone()
+            if not r2 or (r2[0] or 0) < bet: return _json({"error":"no_funds"},400)
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (bet, uid))
+        await db.execute("UPDATE ttt_games SET player2_id=?, status='active' WHERE game_id=?", (uid, gid))
+        await db.commit()
+    return _json({"success":True,"game_id":gid})
+
+async def _wa_ttt_state(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, board, current, status, bet, winner_id FROM ttt_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,board,cur_turn,status,bet,winner_id = row
+        cur2 = await db.execute("SELECT name FROM users WHERE user_id=?", (p1,))
+        n1 = await cur2.fetchone()
+        p2name = None
+        if p2:
+            cur3 = await db.execute("SELECT name FROM users WHERE user_id=?", (p2,))
+            n2 = await cur3.fetchone(); p2name = n2[0] if n2 else "Игрок"
+    my_turn = (cur_turn==1 and uid==p1) or (cur_turn==2 and uid==p2)
+    return _json({
+        "game_id":gid, "status":status, "board":board,
+        "player1":p1, "player2":p2, "p1name":n1[0] if n1 else "Игрок", "p2name":p2name,
+        "current":cur_turn, "my_turn":my_turn, "bet":bet, "winner_id":winner_id,
+        "my_mark": "X" if uid==p1 else ("O" if uid==p2 else None)
+    })
+
+async def _wa_ttt_move(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); cell = int(body.get("cell",0))
+    except: return _json({"error":"invalid"},400)
+    if not (0 <= cell <= 8): return _json({"error":"bad_cell"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, board, current, status, bet FROM ttt_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,board_str,cur_turn,status,bet = row
+        if status != 'active': return _json({"error":"not_active"},400)
+        if cur_turn==1 and uid!=p1: return _json({"error":"not_your_turn"},400)
+        if cur_turn==2 and uid!=p2: return _json({"error":"not_your_turn"},400)
+        cells = board_str.split(",")
+        if cells[cell]: return _json({"error":"occupied"},400)
+        mark = "X" if cur_turn==1 else "O"
+        cells[cell] = mark
+        new_board = ",".join(cells)
+        winner_mark = _ttt_winner(new_board)
+        draw = not winner_mark and all(c for c in cells)
+        if winner_mark:
+            winner_id = p1 if winner_mark=="X" else p2
+            loser_id = p2 if winner_mark=="X" else p1
+            total_pot = (bet or 0) * 2
+            if total_pot > 0:
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (total_pot, winner_id))
+            await db.execute(
+                "INSERT INTO game_history(user_id,game_type,result,amount,created_at) VALUES(?,?,?,?,?)",
+                (winner_id,'ttt','win',total_pot,now_msk().isoformat()))
+            await db.execute(
+                "INSERT INTO game_history(user_id,game_type,result,amount,created_at) VALUES(?,?,?,?,?)",
+                (loser_id,'ttt','loss',0,now_msk().isoformat()))
+            await db.execute(
+                "UPDATE ttt_games SET board=?, status='finished', winner_id=? WHERE game_id=?",
+                (new_board, winner_id, gid))
+        elif draw:
+            if (bet or 0) > 0:
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (bet, p1))
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (bet, p2))
+            await db.execute(
+                "UPDATE ttt_games SET board=?, status='draw' WHERE game_id=?", (new_board, gid))
+        else:
+            next_turn = 2 if cur_turn==1 else 1
+            await db.execute(
+                "UPDATE ttt_games SET board=?, current=? WHERE game_id=?", (new_board, next_turn, gid))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_ttt_resign(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, status, bet FROM ttt_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,status,bet = row
+        if status not in ('active','waiting'): return _json({"error":"not_active"},400)
+        winner_id = p2 if uid==p1 else p1
+        if winner_id and (bet or 0) > 0:
+            await db.execute("UPDATE users SET size=size+? WHERE user_id=?", ((bet or 0)*2, winner_id))
+        await db.execute(
+            "UPDATE ttt_games SET status='finished', winner_id=? WHERE game_id=?", (winner_id, gid))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_ttt_invite(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); fid = int(body.get("friend_id",0))
+    except: return _json({"error":"invalid"},400)
+    base = _get_base_url(request)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT name FROM users WHERE user_id=?", (uid,))
+        r = await cur.fetchone(); sender = r[0] if r else "Игрок"
+    link = f"{base}?ttt={gid}"
+    try:
+        await bot.send_message(fid,
+            f"♟️ <b>{sender}</b> приглашает тебя сыграть в крестики-нолики!\n"
+            f"<a href=\"{link}\">Присоединиться к игре</a>",
+            parse_mode="HTML")
+        return _json({"success":True})
+    except Exception as e:
+        return _json({"error":"send_failed","detail":str(e)},500)
+
+# ── BS multiplayer ─────────────────────────────────────────────────────────────
+
+async def _wa_bs_lobby(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT game_id, player1_id, bet, created_at FROM bs_games WHERE status='waiting' AND player1_id!=? ORDER BY game_id DESC LIMIT 20",
+            (uid,))
+        rows = await cur.fetchall()
+        lobby = []
+        for r in rows:
+            cur2 = await db.execute("SELECT name FROM users WHERE user_id=?", (r[1],))
+            n = await cur2.fetchone()
+            lobby.append({"game_id":r[0],"host":n[0] if n else "Игрок","bet":r[2]})
+    return _json({"lobby":lobby})
+
+async def _wa_bs_create(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); bet = int(body.get("bet",0))
+    except: return _json({"error":"invalid"},400)
+    if bet < 0: return _json({"error":"bad_bet"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        if (row[0] or 0) < bet: return _json({"error":"no_funds"},400)
+        p1_board = _bs_place()
+        zeros = ",".join(["0"]*64)
+        if bet > 0:
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (bet, uid))
+        cur2 = await db.execute(
+            "INSERT INTO bs_games(player1_id, p1_board, p2_board, p1_shots, p2_shots, current, status, bet, created_at) VALUES(?,?,?,?,?,1,'waiting',?,?)",
+            (uid, p1_board, zeros, zeros, zeros, bet, now_msk().isoformat()))
+        gid = cur2.lastrowid
+        await db.commit()
+    return _json({"success":True,"game_id":gid,"my_board":p1_board})
+
+async def _wa_bs_join(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        gid = int(request.match_info["game_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT player1_id, status, bet FROM bs_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        if row[1] != 'waiting': return _json({"error":"not_waiting"},400)
+        if row[0] == uid: return _json({"error":"self"},400)
+        bet = row[2] or 0
+        if bet > 0:
+            cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+            r2 = await cur2.fetchone()
+            if not r2 or (r2[0] or 0) < bet: return _json({"error":"no_funds"},400)
+            await db.execute("UPDATE users SET size=size-? WHERE user_id=?", (bet, uid))
+        p2_board = _bs_place()
+        await db.execute(
+            "UPDATE bs_games SET player2_id=?, p2_board=?, status='active' WHERE game_id=?",
+            (uid, p2_board, gid))
+        await db.commit()
+    return _json({"success":True,"game_id":gid,"my_board":p2_board})
+
+async def _wa_bs_state(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, p1_board, p2_board, p1_shots, p2_shots, current, status, bet, winner_id FROM bs_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,p1b,p2b,p1s,p2s,cur_turn,status,bet,winner_id = row
+        cur2 = await db.execute("SELECT name FROM users WHERE user_id=?", (p1,))
+        n1 = await cur2.fetchone()
+        p2name = None
+        if p2:
+            cur3 = await db.execute("SELECT name FROM users WHERE user_id=?", (p2,))
+            n2 = await cur3.fetchone(); p2name = n2[0] if n2 else "Игрок"
+    if uid == p1:
+        my_board = p1b; opp_shots = p1s; my_shots = p2s; opp_board = p2b
+    else:
+        my_board = p2b; opp_shots = p2s; my_shots = p1s; opp_board = p1b
+    my_results = _bs_results(my_board, opp_shots)
+    opp_results = _bs_results(opp_board, my_shots)
+    my_turn = (cur_turn==1 and uid==p1) or (cur_turn==2 and uid==p2)
+    return _json({
+        "game_id":gid, "status":status, "current":cur_turn,
+        "player1":p1, "player2":p2, "p1name":n1[0] if n1 else "Игрок", "p2name":p2name,
+        "my_board":my_board, "my_results":my_results, "opp_results":opp_results,
+        "my_turn":my_turn, "bet":bet, "winner_id":winner_id
+    })
+
+async def _wa_bs_move(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); cell = int(body.get("cell",0))
+    except: return _json({"error":"invalid"},400)
+    if not (0 <= cell <= 63): return _json({"error":"bad_cell"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, p1_board, p2_board, p1_shots, p2_shots, current, status, bet FROM bs_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,p1b,p2b,p1s,p2s,cur_turn,status,bet = row
+        if status != 'active': return _json({"error":"not_active"},400)
+        if cur_turn==1 and uid!=p1: return _json({"error":"not_your_turn"},400)
+        if cur_turn==2 and uid!=p2: return _json({"error":"not_your_turn"},400)
+        if uid==p1:
+            shots_list = p2s.split(","); target_board = p2b
+        else:
+            shots_list = p1s.split(","); target_board = p1b
+        if shots_list[cell] != '0': return _json({"error":"already_shot"},400)
+        shots_list[cell] = '1'
+        new_shots = ",".join(shots_list)
+        target_list = target_board.split(",")
+        hit = target_list[cell] == '1'
+        sunk = sum(1 for i,v in enumerate(target_list) if v=='1' and shots_list[i]=='1')
+        win = sunk >= BS_TOTAL_CELLS
+        if win:
+            winner_id = uid; loser_id = p2 if uid==p1 else p1
+            total_pot = (bet or 0)*2
+            if total_pot > 0:
+                await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (total_pot, winner_id))
+            await db.execute(
+                "INSERT INTO game_history(user_id,game_type,result,amount,created_at) VALUES(?,?,?,?,?)",
+                (winner_id,'battle','win',total_pot,now_msk().isoformat()))
+            await db.execute(
+                "INSERT INTO game_history(user_id,game_type,result,amount,created_at) VALUES(?,?,?,?,?)",
+                (loser_id,'battle','loss',0,now_msk().isoformat()))
+            if uid==p1:
+                await db.execute("UPDATE bs_games SET p2_shots=?, status='finished', winner_id=? WHERE game_id=?", (new_shots, winner_id, gid))
+            else:
+                await db.execute("UPDATE bs_games SET p1_shots=?, status='finished', winner_id=? WHERE game_id=?", (new_shots, winner_id, gid))
+        else:
+            next_turn = 1 if (hit or cur_turn==2) else 2
+            if not hit: next_turn = 2 if cur_turn==1 else 1
+            else: next_turn = cur_turn
+            if uid==p1:
+                await db.execute("UPDATE bs_games SET p2_shots=?, current=? WHERE game_id=?", (new_shots, next_turn, gid))
+            else:
+                await db.execute("UPDATE bs_games SET p1_shots=?, current=? WHERE game_id=?", (new_shots, next_turn, gid))
+        await db.commit()
+    return _json({"success":True,"hit":hit,"sunk":sunk,"win":win})
+
+async def _wa_bs_resign(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT player1_id, player2_id, status, bet FROM bs_games WHERE game_id=?", (gid,))
+        row = await cur.fetchone()
+        if not row: return _json({"error":"not_found"},404)
+        p1,p2,status,bet = row
+        if status not in ('active','waiting'): return _json({"error":"not_active"},400)
+        winner_id = p2 if uid==p1 else p1
+        if winner_id and (bet or 0) > 0:
+            await db.execute("UPDATE users SET size=size+? WHERE user_id=?", ((bet or 0)*2, winner_id))
+        await db.execute(
+            "UPDATE bs_games SET status='finished', winner_id=? WHERE game_id=?", (winner_id, gid))
+        await db.commit()
+    return _json({"success":True})
+
+async def _wa_bs_invite(request):
+    try:
+        gid = int(request.match_info["game_id"])
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); fid = int(body.get("friend_id",0))
+    except: return _json({"error":"invalid"},400)
+    base = _get_base_url(request)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute("SELECT name FROM users WHERE user_id=?", (uid,))
+        r = await cur.fetchone(); sender = r[0] if r else "Игрок"
+    link = f"{base}?bs={gid}"
+    try:
+        await bot.send_message(fid,
+            f"🚢 <b>{sender}</b> приглашает тебя сыграть в морской бой!\n"
+            f"<a href=\"{link}\">Присоединиться к игре</a>",
+            parse_mode="HTML")
+        return _json({"success":True})
+    except Exception as e:
+        return _json({"error":"send_failed","detail":str(e)},500)
+
+# ── Game reward (solo) ─────────────────────────────────────────────────────────
+
+async def _wa_game_reward(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); game_type = str(body.get("game_type",""))
+    except: return _json({"error":"invalid"},400)
+    if game_type not in GAME_REWARDS: return _json({"error":"unknown_game"},400)
+    reward = GAME_REWARDS[game_type]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT id FROM game_history WHERE user_id=? AND game_type=? AND result='solo_win' AND date(created_at)=date(?)",
+            (uid, game_type, now_msk().isoformat()))
+        already = await cur.fetchone()
+        if already: return _json({"error":"already_claimed","reward":0})
+        await db.execute(
+            "INSERT INTO game_history(user_id,game_type,result,amount,created_at) VALUES(?,?,'solo_win',?,?)",
+            (uid, game_type, reward, now_msk().isoformat()))
+        await db.execute("UPDATE users SET size=size+? WHERE user_id=?", (reward, uid))
+        await db.commit()
+        cur2 = await db.execute("SELECT size FROM users WHERE user_id=?", (uid,))
+        r2 = await cur2.fetchone()
+    return _json({"success":True,"reward":reward,"new_size":r2[0] if r2 else 0})
+
+# ── Stats chart ────────────────────────────────────────────────────────────────
+
+async def _wa_stats_chart(request):
+    try: uid = int(request.match_info["user_id"])
+    except: return _json({"error":"invalid"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        cur = await db.execute(
+            "SELECT game_type, result, COUNT(*) FROM game_history WHERE user_id=? GROUP BY game_type, result",
+            (uid,))
+        rows = await cur.fetchall()
+    stats = {}
+    for game_type, result, cnt in rows:
+        if game_type not in stats: stats[game_type] = {"win":0,"loss":0,"solo_win":0}
+        if result in stats[game_type]: stats[game_type][result] += cnt
+    return _json({"stats":stats})
+
+# ── Settings ───────────────────────────────────────────────────────────────────
+
+async def _wa_settings_name(request):
+    try:
+        uid = int(request.match_info["user_id"])
+        body = await request.json(); new_name = str(body.get("name","")).strip()
+    except: return _json({"error":"invalid"},400)
+    if not new_name or len(new_name) > 32: return _json({"error":"bad_name"},400)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE users SET name=? WHERE user_id=?", (new_name, uid))
+        await db.commit()
+    return _json({"success":True,"name":new_name})
+
 # ── Друзья: API ───────────────────────────────────────────────────────────────
 
 async def _wa_friends_list(request):
@@ -4769,6 +5361,8 @@ async def start_webapp():
     app.router.add_post("/api/clan/{user_id}/withdraw", _wa_clan_withdraw)
     app.router.add_post("/api/stocks/buy/{user_id}", _wa_stock_buy)
     app.router.add_post("/api/stocks/sell/{user_id}", _wa_stock_sell)
+    app.router.add_post("/api/transfer/{user_id}", _wa_transfer)
+    app.router.add_get("/api/tx-log/{user_id}", _wa_tx_log)
     app.router.add_get("/api/lootbox/{user_id}", _wa_lootbox_info)
     app.router.add_post("/api/lootbox/{user_id}", _wa_lootbox_open)
     app.router.add_get("/api/backgammon/lobby/{user_id}", _wa_bg_lobby)
@@ -4787,6 +5381,23 @@ async def start_webapp():
     app.router.add_get("/api/cosmetics/{user_id}", _wa_cosmetics_get)
     app.router.add_post("/api/cosmetics/{user_id}/buy", _wa_cosmetics_buy)
     app.router.add_post("/api/cosmetics/{user_id}/equip", _wa_cosmetics_equip)
+    app.router.add_get("/api/ttt/lobby/{user_id}", _wa_ttt_lobby)
+    app.router.add_post("/api/ttt/create/{user_id}", _wa_ttt_create)
+    app.router.add_post("/api/ttt/join/{user_id}/{game_id}", _wa_ttt_join)
+    app.router.add_get("/api/ttt/state/{game_id}/{user_id}", _wa_ttt_state)
+    app.router.add_post("/api/ttt/move/{game_id}/{user_id}", _wa_ttt_move)
+    app.router.add_post("/api/ttt/resign/{game_id}/{user_id}", _wa_ttt_resign)
+    app.router.add_post("/api/ttt/{game_id}/invite/{user_id}", _wa_ttt_invite)
+    app.router.add_get("/api/bs/lobby/{user_id}", _wa_bs_lobby)
+    app.router.add_post("/api/bs/create/{user_id}", _wa_bs_create)
+    app.router.add_post("/api/bs/join/{user_id}/{game_id}", _wa_bs_join)
+    app.router.add_get("/api/bs/state/{game_id}/{user_id}", _wa_bs_state)
+    app.router.add_post("/api/bs/move/{game_id}/{user_id}", _wa_bs_move)
+    app.router.add_post("/api/bs/resign/{game_id}/{user_id}", _wa_bs_resign)
+    app.router.add_post("/api/bs/{game_id}/invite/{user_id}", _wa_bs_invite)
+    app.router.add_post("/api/game-reward/{user_id}", _wa_game_reward)
+    app.router.add_get("/api/stats-chart/{user_id}", _wa_stats_chart)
+    app.router.add_post("/api/settings/{user_id}/name", _wa_settings_name)
     app.router.add_route("OPTIONS", "/{path_info:.*}", _wa_options)
     runner = aio_web.AppRunner(app)
     await runner.setup()

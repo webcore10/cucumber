@@ -8,285 +8,344 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{
-  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#2d333b;
-  --g:#3fb950;--gd:#1f4d2a;--r:#f85149;--rd:#4d1f1f;
-  --b:#58a6ff;--gold:#d4a017;--pur:#a371f7;
-  --txt:#e6edf3;--mt:#8b949e;--brd:#30363d;
-  --rad:12px;--nav:60px;--hdr:50px;
+  --bg:#0a0a0a;--bg2:#111111;--bg3:#1a1a1a;--bg4:#222222;
+  --g:#22c55e;--gd:rgba(34,197,94,.08);
+  --r:#ef4444;--rd:rgba(239,68,68,.1);
+  --b:#737373;--gold:#f59e0b;--pur:#a855f7;
+  --txt:#f8fafc;--mt:rgba(248,250,252,.38);
+  --brd:rgba(255,255,255,.07);--brd2:rgba(255,255,255,.12);
+  --glass:rgba(255,255,255,.06);--gbrd:rgba(255,255,255,.1);
+  --rad:14px;--nav:58px;--hdr:52px;
+  --sh:0 2px 12px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
 
-/* LAYOUT */
-.hdr{position:fixed;top:0;left:0;right:0;height:var(--hdr);z-index:200;background:var(--bg2);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 14px;gap:10px}
-.hdr-icon{font-size:22px}
+/* ── SPLASH ── */
+#splash{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transition:opacity .4s,transform .4s}
+#splash.out{opacity:0;pointer-events:none;transform:scale(.95)}
+.sp-icon{width:80px;height:80px;display:flex;align-items:center;justify-content:center;animation:spb 2s ease-in-out infinite}
+.sp-icon svg{width:80px;height:80px}
+@keyframes spb{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-14px) rotate(2deg)}}
+.sp-name{font-size:24px;font-weight:700;letter-spacing:-.4px;color:var(--txt);margin-top:4px}
+.sp-dots{display:flex;gap:6px;margin-top:10px}
+.sp-dots span{width:6px;height:6px;border-radius:50%;background:var(--g);opacity:.25;display:inline-block;animation:spd 1.2s ease-in-out infinite}
+.sp-dots span:nth-child(2){animation-delay:.18s}
+.sp-dots span:nth-child(3){animation-delay:.36s}
+@keyframes spd{0%,80%,100%{transform:scale(.4);opacity:.25}40%{transform:scale(1.1);opacity:1}}
+
+/* ── HEADER ── */
+.hdr{position:fixed;top:0;left:0;right:0;height:52px;z-index:200;background:rgba(10,10,10,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 16px;gap:10px}
 .hdr-info{flex:1;min-width:0}
-.hdr-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hdr-bal{font-size:12px;color:var(--g);font-weight:600}
-.hdr-loan{font-size:11px;color:var(--r)}
+.hdr-name{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.2px;color:var(--txt)}
+.hdr-loan{font-size:11px;color:var(--r);margin-top:1px;font-weight:500}
+.hdr-bal{font-size:13px;font-weight:700;color:var(--g);background:rgba(34,197,94,.1);padding:5px 12px;border-radius:20px;flex-shrink:0;white-space:nowrap;border:1px solid rgba(34,197,94,.2);letter-spacing:-.2px}
+
+/* ── LAYOUT ── */
 .scroll{position:fixed;top:var(--hdr);bottom:var(--nav);left:0;right:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.page{display:none;padding:12px 12px 16px;animation:fi .15s ease}
+.page{display:none;padding:12px 12px 16px;animation:fi .18s ease}
 .page.on{display:block}
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav);z-index:200;background:var(--bg2);border-top:1px solid var(--brd);display:flex}
-.nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:none;border:none;color:var(--mt);font-size:10px;cursor:pointer;padding:4px 2px;transition:color .15s}
-.nb .ni{font-size:20px}
+
+/* ── BOTTOM NAV ── */
+.nav{position:fixed;bottom:0;left:0;right:0;height:58px;z-index:200;background:rgba(10,10,10,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--brd);display:flex;align-items:stretch;padding-bottom:env(safe-area-inset-bottom,0)}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;color:var(--mt);font-size:9px;font-weight:600;cursor:pointer;padding:4px 2px;transition:color .15s;letter-spacing:.3px;text-transform:uppercase;-webkit-tap-highlight-color:transparent;position:relative}
+.nb .ni{width:22px;height:22px;display:flex;align-items:center;justify-content:center;transition:transform .18s}
+.nb .ni svg{width:22px;height:22px;display:block;stroke-width:1.7}
+.nb .ni-em{font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;width:22px;height:22px;filter:grayscale(1) opacity(.4);transition:filter .18s,transform .18s}
+.nb span:last-child{line-height:1}
 .nb.on{color:var(--g)}
+.nb.on .ni{transform:scale(1.08);color:var(--g)}
+.nb.on .ni-em{filter:grayscale(0) opacity(1);transform:scale(1.08)}
 
-/* CARDS */
-.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);padding:14px;margin-bottom:10px}
-.card-title{font-size:11px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);padding:18px;margin-bottom:12px;box-shadow:var(--sh)}
+.card-title{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px}
 
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border:none;border-radius:var(--rad);font-size:14px;font-weight:600;cursor:pointer;transition:transform .1s,opacity .15s;white-space:nowrap}
-.btn:active{transform:scale(.95)}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.btn-g{background:linear-gradient(135deg,#1a6b2a,var(--g));color:#fff;box-shadow:0 2px 12px rgba(63,185,80,.25)}
-.btn-r{background:linear-gradient(135deg,#6b1a1a,var(--r));color:#fff}
-.btn-b{background:linear-gradient(135deg,#1a3a6b,var(--b));color:#fff}
-.btn-pur{background:linear-gradient(135deg,#4a1f8a,var(--pur));color:#fff}
-.btn-gold{background:linear-gradient(135deg,#6b4e00,var(--gold));color:#fff}
-.btn-ghost{background:var(--bg3);color:var(--txt);border:1px solid var(--brd)}
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 18px;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s,opacity .12s;white-space:nowrap;letter-spacing:-.1px}
+.btn:active{transform:scale(.93)}
+.btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.btn-g{background:linear-gradient(135deg,#22c55e,#16a34a);color:#052e16;box-shadow:0 4px 16px rgba(34,197,94,.2)}
+.btn-r{background:var(--r);color:#fff}
+.btn-b{background:#2a2a2a;color:var(--txt);border:1px solid var(--brd2)}
+.btn-pur{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;box-shadow:0 4px 16px rgba(168,85,247,.2)}
+.btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a0e00}
+.btn-ghost{background:var(--bg3);color:var(--txt);border:1px solid var(--brd2)}
 .btn-full{width:100%;display:flex}
-.btn-sm{padding:7px 12px;font-size:12px;border-radius:8px}
+.btn-sm{padding:8px 12px;font-size:12px;border-radius:10px}
 
-/* GROW PAGE */
-.cuke-hero{text-align:center;padding:20px 0 14px}
-.cuke-em{font-size:72px;line-height:1;display:inline-block;animation:bob 2.4s ease-in-out infinite;filter:drop-shadow(0 0 18px rgba(63,185,80,.35))}
-@keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
-.cuke-sz{font-size:48px;font-weight:800;color:var(--g);letter-spacing:-2px;text-shadow:0 0 24px rgba(63,185,80,.35);margin-top:10px}
-.cuke-unit{font-size:16px;color:var(--mt);font-weight:400}
-.cuke-lbl{font-size:12px;color:var(--mt);margin-top:2px}
-.prog-bar{height:5px;background:var(--bg3);border-radius:3px;margin:10px 0 4px;overflow:hidden}
-.prog-fill{height:100%;background:var(--g);border-radius:3px;transition:width .3s}
+/* ── HOME ── */
+.cuke-hero{text-align:center;padding:28px 0 18px}
+.cuke-em{display:flex;justify-content:center;animation:bob 3s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.cuke-sz{font-size:64px;font-weight:800;color:var(--g);letter-spacing:-4px;margin-top:12px;line-height:1;text-shadow:0 0 40px rgba(34,197,94,.2)}
+.cuke-unit{font-size:20px;color:var(--mt);font-weight:400;letter-spacing:0}
+.cuke-lbl{font-size:10px;color:var(--mt);margin-top:5px;letter-spacing:1px;text-transform:uppercase}
+.prog-bar{height:4px;background:var(--bg3);border-radius:6px;margin:12px 0 6px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--g),#16a34a);border-radius:6px;transition:width .5s cubic-bezier(.4,0,.2,1)}
 .prog-lbl{font-size:11px;color:var(--mt);text-align:center}
-.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
-.stat-box{background:var(--bg3);border-radius:8px;padding:10px 6px;text-align:center}
-.stat-v{font-size:18px;font-weight:700;color:var(--txt)}
-.stat-l{font-size:10px;color:var(--mt);margin-top:2px}
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.stat-box{background:var(--bg3);border-radius:14px;padding:14px 8px;text-align:center;border:1px solid var(--brd)}
+.stat-v{font-size:22px;font-weight:800;color:var(--txt);letter-spacing:-1px}
+.stat-l{font-size:10px;color:var(--mt);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+.box-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;text-align:center;font-size:12px;color:var(--mt)}
+.box-grid>div{background:var(--bg3);border-radius:12px;padding:9px 6px;border:1px solid var(--brd)}
+.box-rare{font-size:14px;font-weight:700;color:var(--pur);text-align:center;margin:8px 0}
 
-/* BOX */
-.box-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;text-align:center;font-size:12px;color:var(--mt)}
-.box-rare{font-size:13px;font-weight:700;color:var(--pur);text-align:center;margin:6px 0}
+/* ── SUB-NAV ── */
+.sub-nav{display:flex;gap:3px;margin-bottom:14px;background:var(--bg3);border-radius:14px;padding:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border:1px solid var(--brd)}
+.sub-nav::-webkit-scrollbar{display:none}
+.snb{flex:1 0 auto;padding:8px 12px;background:none;border:none;color:var(--mt);font-size:12px;font-weight:600;border-radius:10px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;text-align:center}
+.snb.on{background:var(--bg2);color:var(--txt);box-shadow:var(--sh)}
 
-/* MARKET */
-.sub-nav{display:flex;gap:6px;margin-bottom:12px;background:var(--bg3);border-radius:var(--rad);padding:3px}
-.snb{flex:1;padding:7px;background:none;border:none;color:var(--mt);font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;transition:background .15s,color .15s}
-.snb.on{background:var(--bg2);color:var(--txt)}
-.tcard{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);margin-bottom:8px;overflow:hidden;transition:border-color .15s}
-.tcard.sel{border-color:var(--g)}
-.tcard-top{display:flex;align-items:center;padding:10px 12px;cursor:pointer;gap:10px}
-.tcard-em{font-size:22px;width:30px;text-align:center;flex-shrink:0}
+/* ── MARKET ── */
+.tcard{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);margin-bottom:10px;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.tcard.sel{border-color:var(--g);box-shadow:0 0 0 1px rgba(34,197,94,.1)}
+.tcard-top{display:flex;align-items:center;padding:14px 16px;cursor:pointer;gap:12px}
+.tcard-em{font-size:24px;width:32px;text-align:center;flex-shrink:0}
 .tcard-info{flex:1;min-width:0}
-.tcard-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tcard-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tcard-tk{font-size:11px;color:var(--mt)}
 .tcard-pr{text-align:right}
-.tcard-price{font-size:14px;font-weight:700}
-.tcard-ch{font-size:11px;font-weight:600}
+.tcard-price{font-size:15px;font-weight:700}
+.tcard-ch{font-size:12px;font-weight:600}
 .up{color:var(--g)}.down{color:var(--r)}
-.tcard-acts{display:flex;gap:6px;padding:0 10px 10px}
-.chart-wrap{padding:10px 12px 12px;border-top:1px solid var(--brd)}
+.tcard-acts{display:flex;gap:8px;padding:0 14px 14px}
+.chart-wrap{padding:12px 14px 14px;border-top:1px solid var(--brd)}
 canvas#price-chart{max-height:130px}
-.port-hdr{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
-.port-tot{font-size:24px;font-weight:800;color:var(--g)}
+.port-hdr{display:flex;align-items:baseline;gap:8px;margin-bottom:14px}
+.port-tot{font-size:28px;font-weight:800;color:var(--g);letter-spacing:-1px}
 .port-lbl{font-size:12px;color:var(--mt)}
-.port-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)}
+.port-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--brd)}
 .port-row:last-child{border-bottom:none}
 .port-info{flex:1}
-.port-name{font-size:13px;font-weight:600}
+.port-name{font-size:14px;font-weight:600}
 .port-sh{font-size:11px;color:var(--mt)}
 .port-val{text-align:right}
-.port-price{font-size:13px;font-weight:700}
+.port-price{font-size:14px;font-weight:700}
 .port-total{font-size:11px;color:var(--mt)}
 
-/* BUSINESS */
-.biz-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);margin-bottom:10px;overflow:hidden}
-.biz-hdr{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--brd)}
+/* ── BUSINESS ── */
+.biz-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rad);margin-bottom:12px;overflow:hidden;box-shadow:var(--sh)}
+.biz-hdr{display:flex;align-items:center;gap:14px;padding:16px;border-bottom:1px solid var(--brd)}
 .biz-em{font-size:28px}
 .biz-meta{flex:1}
-.biz-name{font-size:15px;font-weight:700}
+.biz-name{font-size:16px;font-weight:700}
 .biz-type{font-size:11px;color:var(--mt)}
-.biz-lvl{background:var(--gd);color:var(--g);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
-.biz-stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;padding:8px 12px;gap:4px}
-.bs-v{font-size:14px;font-weight:700}
+.biz-lvl{background:var(--gd);color:var(--g);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid rgba(34,197,94,.2)}
+.biz-stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;padding:12px 14px;gap:4px}
+.bs-v{font-size:15px;font-weight:700}
 .bs-l{font-size:10px;color:var(--mt)}
-.biz-acts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px}
+.biz-acts{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
 
-/* CLAN */
-.clan-hero{text-align:center;padding:16px 0 10px}
-.clan-name{font-size:22px;font-weight:800}
+/* ── CLAN ── */
+.clan-hero{text-align:center;padding:16px 0 12px}
+.clan-name{font-size:24px;font-weight:800}
 .clan-tr{font-size:18px;color:var(--gold);font-weight:700;margin-top:4px}
-.mbr-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)}
+.mbr-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--brd)}
 .mbr-row:last-child{border-bottom:none}
-.mbr-rank{font-size:11px;color:var(--mt);width:18px;text-align:right}
-.mbr-name{flex:1;font-size:13px;font-weight:600}
+.mbr-rank{font-size:11px;color:var(--mt);width:20px;text-align:right}
+.mbr-name{flex:1;font-size:14px;font-weight:600}
 .mbr-role{font-size:11px;color:var(--mt)}
-.mbr-sz{font-size:13px;font-weight:700;color:var(--g)}
+.mbr-sz{font-size:14px;font-weight:700;color:var(--g)}
 
-/* SLOTS */
-.reels{display:flex;gap:8px;justify-content:center;margin:16px 0}
-.reel{width:70px;height:70px;border-radius:10px;background:var(--bg3);border:2px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:36px;transition:border-color .3s}
-.reel.win{border-color:var(--g);box-shadow:0 0 12px rgba(63,185,80,.3)}
+/* ── SLOTS ── */
+.reels{display:flex;gap:12px;justify-content:center;margin:18px 0}
+.reel{width:76px;height:76px;border-radius:18px;background:var(--bg3);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:36px;transition:border-color .25s,box-shadow .25s}
+.reel.win{border-color:var(--g);box-shadow:0 0 20px rgba(34,197,94,.18)}
 .reel.lose{border-color:var(--r)}
 .slot-res{text-align:center;font-size:15px;font-weight:700;min-height:22px;margin:4px 0}
-.paytable{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.pt-row{background:var(--bg3);border-radius:8px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;font-size:12px}
-.pt-combo{font-size:13px}
+.paytable{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pt-row{background:var(--bg3);border-radius:11px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:12px;border:1px solid var(--brd)}
+.pt-combo{font-size:14px}
 .pt-pay{color:var(--gold);font-weight:700}
-.bet-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-.bet-inp{flex:1;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:14px;text-align:center}
+.bet-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.bet-inp{flex:1;background:var(--bg3);border:1px solid var(--brd);border-radius:12px;padding:11px 14px;color:var(--txt);font-size:15px;text-align:center}
 .bet-inp:focus{outline:none;border-color:var(--g)}
 
-/* BACKGAMMON */
-.bg-board{background:var(--bg3);border-radius:var(--rad);overflow:hidden;margin-bottom:10px;border:1px solid var(--brd)}
+/* ── BACKGAMMON ── */
+.bg-board{background:var(--bg3);border-radius:var(--rad);overflow:hidden;margin-bottom:12px;border:1px solid var(--brd)}
 .bg-row{display:flex;padding:4px 6px;gap:3px}
-.bg-pt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 2px;border-radius:6px;cursor:pointer;transition:background .15s;min-height:80px;position:relative}
-.bg-pt.valid{background:rgba(63,185,80,.15)}
-.bg-pt.valid:active{background:rgba(63,185,80,.3)}
-.bg-pt.selected{background:rgba(88,166,255,.2)}
+.bg-pt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 2px;border-radius:8px;cursor:pointer;transition:background .12s;min-height:80px;position:relative}
+.bg-pt.valid{background:rgba(34,197,94,.12)}
+.bg-pt.valid:active{background:rgba(34,197,94,.24)}
+.bg-pt.selected{background:rgba(255,255,255,.1)}
 .bg-pt-num{font-size:9px;color:var(--mt);font-weight:600}
 .bg-pip{width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.pip-w{background:#e6edf3;color:#0d1117}
-.pip-b{background:#2d333b;color:#e6edf3;border:1px solid #555}
-.pip-more{font-size:9px}
-.bg-mid{background:var(--bg4);display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:12px}
+.pip-w{background:#f1f5f9;color:#06060f}
+.pip-b{background:#22223a;color:#f1f5f9;border:1px solid #3a3a5a}
+.bg-mid{background:var(--bg4);display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:12px}
 .bg-dice{display:flex;gap:6px}
-.die{width:28px;height:28px;border-radius:6px;background:var(--bg2);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.die{width:30px;height:30px;border-radius:9px;background:var(--bg2);border:1px solid var(--brd2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
 .die.used{opacity:.3}
-.bg-info{font-size:12px;color:var(--mt);text-align:center}
-.bg-status{text-align:center;padding:16px;font-size:15px;font-weight:600}
-.bg-lobby-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--brd)}
+.bg-status{text-align:center;padding:18px;font-size:15px;font-weight:600}
+.bg-lobby-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--brd)}
 .bg-lobby-item:last-child{border-bottom:none}
 
-/* BANK */
-.bank-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.bank-cell{background:var(--bg3);border-radius:8px;padding:12px;text-align:center}
-.bank-v{font-size:20px;font-weight:800;margin-bottom:2px}
-.bank-l{font-size:10px;color:var(--mt)}
-
-/* FORBES */
-.forbes-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)}
-.forbes-row:last-child{border-bottom:none}
-.rank-badge{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
-.r1{background:var(--gold);color:#000}
-.r2{background:#9e9e9e;color:#000}
-.r3{background:#cd7f32;color:#000}
-.rn{background:var(--bg3);color:var(--mt)}
-.forbes-name{flex:1;font-size:13px;font-weight:600}
-.forbes-sz{font-size:14px;font-weight:700;color:var(--g)}
-
-/* MODAL */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end;justify-content:center}
-.ov.on{display:flex;animation:fov .2s ease}
-@keyframes fov{from{opacity:0}to{opacity:1}}
-.modal{background:var(--bg2);border-radius:16px 16px 0 0;padding:20px 16px 24px;width:100%;max-width:480px;animation:slu .25s ease}
-@keyframes slu{from{transform:translateY(60px)}to{transform:none}}
-.modal-title{font-size:17px;font-weight:700;margin-bottom:14px}
-.modal-inp{width:100%;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:10px 12px;color:var(--txt);font-size:14px;margin-bottom:8px;display:block}
-.modal-inp:focus{outline:none;border-color:var(--g)}
-.modal-inp select{width:100%}
-.modal-label{font-size:12px;color:var(--mt);margin-bottom:4px}
-.modal-btns{display:flex;gap:8px;margin-top:4px}
-
-/* TOAST */
-.toast{position:fixed;bottom:calc(var(--nav) + 12px);left:50%;transform:translateX(-50%) translateY(10px);background:var(--bg3);color:var(--txt);padding:10px 18px;border-radius:20px;font-size:13px;font-weight:600;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
-.toast.err{background:var(--rd);color:var(--r)}
-.toast.ok{background:var(--gd);color:var(--g)}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-/* MISC */
-.no-data{text-align:center;padding:24px 16px;color:var(--mt);font-size:13px}
-.spin{text-align:center;padding:20px;color:var(--mt);font-size:13px}
-.chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:var(--bg3);color:var(--mt)}
-.chip-g{background:var(--gd);color:var(--g)}
-.chip-r{background:var(--rd);color:var(--r)}
-.new-biz-btn{width:100%;padding:12px;background:linear-gradient(135deg,#1a6b2a,var(--g));color:#fff;border:none;border-radius:var(--rad);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
-
-/* BANK ACTIONS */
-.bank-action{background:var(--bg3);border-radius:var(--rad);padding:12px;margin-bottom:8px}
-.bank-action-title{font-size:11px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-.loan-amount{font-size:22px;font-weight:800;color:var(--r);margin-bottom:4px}
-.deposit-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--brd)}
+/* ── BANK ── */
+.bank-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bank-cell{background:var(--bg3);border-radius:14px;padding:16px;text-align:center;border:1px solid var(--brd)}
+.bank-v{font-size:22px;font-weight:800;margin-bottom:3px;letter-spacing:-1px}
+.bank-l{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.5px}
+.bank-action{background:var(--bg3);border-radius:14px;padding:16px;margin-bottom:10px;border:1px solid var(--brd)}
+.loan-amount{font-size:24px;font-weight:800;color:var(--r);margin-bottom:4px;letter-spacing:-1px}
+.deposit-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--brd)}
 .deposit-row:last-child{border-bottom:none}
-.deposit-info{font-size:12px;line-height:1.5}
-.deposit-total{font-size:13px;font-weight:700;color:var(--g)}
-.dep-tab{flex:1;padding:8px 4px;background:none;border:none;color:var(--mt);font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;transition:background .15s,color .15s;text-align:center}
+.deposit-info{font-size:12px;line-height:1.6}
+.deposit-total{font-size:14px;font-weight:700;color:var(--g)}
+.dep-tab{flex:1;padding:8px 4px;background:none;border:none;color:var(--mt);font-size:12px;font-weight:600;border-radius:10px;cursor:pointer;transition:background .12s,color .12s;text-align:center}
 .dep-tab.on{background:var(--bg2);color:var(--txt)}
 
-/* NEWS */
-.news-card{background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px}
-.news-date{font-size:10px;color:var(--mt);margin-bottom:4px}
-.news-text{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
-.news-inp{width:100%;padding:10px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--txt);font-size:13px;resize:vertical;min-height:70px;font-family:inherit}
+/* ── FORBES ── */
+.forbes-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--brd)}
+.forbes-row:last-child{border-bottom:none}
+.rank-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.r1{background:var(--gold);color:#1a0f00}.r2{background:#9ca3af;color:#fff}.r3{background:#b45309;color:#fff}.rn{background:var(--bg3);color:var(--mt)}
+.forbes-name{flex:1;font-size:14px;font-weight:600}
+.forbes-sz{font-size:15px;font-weight:700;color:var(--g)}
 
-/* FRIENDS */
-.friend-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)}
+/* ── NEWS ── */
+.news-card{background:var(--bg3);border-radius:14px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--brd)}
+.news-date{font-size:10px;color:var(--mt);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.news-text{font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.news-inp{width:100%;padding:11px 14px;background:var(--bg3);border:1px solid var(--brd);border-radius:12px;color:var(--txt);font-size:13px;resize:vertical;min-height:70px;font-family:inherit}
+
+/* ── FRIENDS ── */
+.friend-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--brd)}
 .friend-row:last-child{border-bottom:none}
-.friend-av{font-size:22px;width:32px;text-align:center;flex-shrink:0}
+.friend-av{font-size:24px;width:34px;text-align:center;flex-shrink:0}
 .friend-info{flex:1;min-width:0}
-.friend-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .friend-sz{font-size:11px;color:var(--g)}
-.friend-acts{display:flex;gap:4px;flex-shrink:0}
+.friend-acts{display:flex;gap:5px;flex-shrink:0}
 
-/* SUB-NAV SCROLL (for many buttons) */
-.sub-nav{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.sub-nav::-webkit-scrollbar{display:none}
-.snb{flex:1 0 auto}
-
-/* CUKE OUTFIT */
-.cuke-hat-em{font-size:40px;line-height:1;min-height:40px;text-align:center}
-.cuke-acc-em{font-size:24px;line-height:1;min-height:24px;text-align:center;margin-top:2px}
-
-/* WARDROBE */
-.wrd-section{margin-bottom:14px}
-.wrd-section-title{font-size:11px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-.wrd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.wrd-item{background:var(--bg3);border:2px solid var(--brd);border-radius:10px;padding:10px 4px;text-align:center;transition:border-color .15s}
-.wrd-item.equipped{border-color:var(--g)}
-.wrd-item-em{font-size:30px;line-height:1.2;min-height:36px}
-.wrd-item-name{font-size:10px;color:var(--mt);margin:2px 0}
-.wrd-item-price{font-size:11px;font-weight:700;color:var(--gold)}
-.wrd-item-owned{font-size:10px;font-weight:700;color:var(--b)}
-
-/* MINESWEEPER */
-.mine-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;justify-content:space-between;flex-wrap:wrap}
-.mine-grid{display:grid;gap:2px;width:-webkit-fit-content;width:fit-content;margin:0 auto 10px}
-.mine-cell{width:33px;height:33px;background:var(--bg3);border:1px solid var(--brd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .1s}
+/* ── MINESWEEPER ── */
+.mine-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;justify-content:space-between;flex-wrap:wrap}
+.mine-grid{display:grid;gap:3px;width:-webkit-fit-content;width:fit-content;margin:0 auto 12px}
+.mine-cell{width:36px;height:36px;background:var(--bg3);border:1px solid var(--brd);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .1s}
 .mine-cell.revealed{background:var(--bg);border-color:transparent;cursor:default}
 .mine-cell.boom{background:var(--rd);border-color:var(--r)}
-.mc1{color:var(--b)}.mc2{color:var(--g)}.mc3{color:var(--r)}.mc4{color:var(--pur)}.mc5{color:var(--gold)}.mc6{color:#79c0ff}.mc7{color:var(--txt)}.mc8{color:var(--mt)}
+.mc1{color:var(--b)}.mc2{color:var(--g)}.mc3{color:var(--r)}.mc4{color:var(--pur)}.mc5{color:var(--gold)}.mc6{color:#93c5fd}.mc7{color:var(--txt)}.mc8{color:var(--mt)}
 
-/* TTT */
-.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:260px;margin:0 auto 12px}
-.ttt-cell{height:75px;background:var(--bg3);border:1px solid var(--brd);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer;transition:background .1s}
+/* ── TTT ── */
+.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:272px;margin:0 auto 14px}
+.ttt-cell{height:80px;background:var(--bg3);border:1px solid var(--brd);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer;transition:background .1s}
 .ttt-cell.win-cell{background:var(--gd);border-color:var(--g)}
-.ttt-score{display:flex;gap:20px;justify-content:center;margin-bottom:10px}
+.ttt-score{display:flex;gap:24px;justify-content:center;margin-bottom:12px}
 .ttt-score-box{text-align:center}
-.ttt-score-v{font-size:26px;font-weight:800}
-.ttt-score-l{font-size:10px;color:var(--mt)}
+.ttt-score-v{font-size:28px;font-weight:800;letter-spacing:-1px}
+.ttt-score-l{font-size:10px;color:var(--mt);text-transform:uppercase;letter-spacing:.5px}
 
-/* BATTLESHIP */
-.bs-wrap{text-align:center;overflow-x:auto;margin-bottom:8px}
-.bs-grid{display:inline-grid;gap:2px}
-.bs-cell{width:28px;height:28px;background:var(--bg3);border:1px solid var(--brd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;-webkit-user-select:none;user-select:none}
+/* ── BATTLESHIP ── */
+.bs-wrap{text-align:center;overflow-x:auto;margin-bottom:10px}
+.bs-grid{display:inline-grid;gap:3px}
+.bs-cell{width:30px;height:30px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;-webkit-user-select:none;user-select:none}
 .bs-hdr{background:transparent;border:none;color:var(--mt);font-size:10px;font-weight:700;cursor:default}
 .bs-ship{background:var(--bg4)}
 .bs-hit{background:var(--rd);border-color:var(--r);cursor:default}
-.bs-miss{background:var(--bg4);opacity:.45;cursor:default}
-.bs-label{font-size:11px;color:var(--mt);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:6px 0 3px}
+.bs-miss{background:var(--bg4);opacity:.4;cursor:default}
+.bs-label{font-size:11px;color:var(--mt);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px}
 .bs-status{text-align:center;font-size:14px;font-weight:700;min-height:22px;margin:6px 0}
+
+/* ── MODAL ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:500;display:none;align-items:flex-end;justify-content:center}
+.ov.on{display:flex;animation:fov .2s ease}
+@keyframes fov{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg2);border-radius:28px 28px 0 0;padding:8px 18px 36px;width:100%;max-width:480px;animation:slu .24s cubic-bezier(.4,0,.2,1);border-top:1px solid var(--brd2)}
+.modal::before{content:'';display:block;width:36px;height:4px;background:rgba(255,255,255,.14);border-radius:2px;margin:12px auto 20px}
+@keyframes slu{from{transform:translateY(60px)}to{transform:none}}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:18px;letter-spacing:-.3px}
+.modal-inp{width:100%;background:var(--bg3);border:1px solid var(--brd);border-radius:13px;padding:13px 16px;color:var(--txt);font-size:15px;margin-bottom:10px;display:block}
+.modal-inp:focus{outline:none;border-color:var(--g)}
+.modal-label{font-size:12px;color:var(--mt);margin-bottom:6px}
+.modal-btns{display:flex;gap:10px;margin-top:10px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:calc(var(--nav) + 14px);left:50%;transform:translateX(-50%) translateY(10px);background:rgba(13,13,28,.96);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);color:var(--txt);padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;max-width:88vw;text-align:center;border:1px solid var(--brd2);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.err{background:rgba(248,113,113,.14);color:var(--r);border-color:rgba(248,113,113,.24)}
+.toast.ok{background:rgba(34,197,94,.1);color:var(--g);border-color:rgba(34,197,94,.2)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── MISC ── */
+.no-data{text-align:center;padding:32px 16px;color:var(--mt);font-size:13px}
+.spin{text-align:center;padding:28px;color:var(--mt);font-size:13px}
+.chip{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--bg3);color:var(--mt)}
+.chip-g{background:var(--gd);color:var(--g);border:1px solid rgba(34,197,94,.16)}
+.chip-r{background:rgba(239,68,68,.1);color:var(--r)}
+.new-biz-btn{width:100%;padding:14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#052e16;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 14px rgba(34,197,94,.2)}
+.cuke-hat-em{font-size:42px;line-height:1;min-height:42px;text-align:center}
+
+/* ── SETTINGS ── */
+.hdr-gear{background:rgba(255,255,255,.07);border:1px solid var(--brd2);color:rgba(255,255,255,.45);cursor:pointer;flex-shrink:0;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;padding:0}
+.hdr-gear:active{background:rgba(255,255,255,.16);color:#fff}
+.hdr-gear svg{width:16px;height:16px;display:block}
+.lang-btn{flex:1;padding:10px 4px;background:var(--bg3);border:2px solid var(--brd);border-radius:12px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;transition:border-color .15s}
+.lang-btn.on{border-color:var(--g);color:var(--g)}
+
+/* ── BANK APP ── */
+.bank-card{position:relative;background:linear-gradient(145deg,#161616 0%,#242424 55%,#1c1c1c 100%);border-radius:18px;padding:20px 22px 18px;margin-bottom:14px;overflow:hidden;border:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;justify-content:space-between;min-height:166px}
+.bank-card::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(34,197,94,.12),transparent 70%);pointer-events:none}
+.bank-card::after{content:'';position:absolute;bottom:-50px;left:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(255,255,255,.025),transparent 70%);pointer-events:none}
+.bk-card-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
+.bk-card-logo{font-size:10px;font-weight:900;letter-spacing:2.5px;color:var(--g);text-transform:uppercase;opacity:.9}
+.bk-chip{width:28px;height:20px;background:linear-gradient(135deg,#b8962e,#e8c84a);border-radius:4px;opacity:.85}
+.bk-card-num{font-size:14px;font-weight:500;letter-spacing:3px;font-family:ui-monospace,'SF Mono','Courier New',monospace;position:relative;z-index:1;color:rgba(248,250,252,.7);margin:18px 0 14px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.bk-card-footer{display:flex;justify-content:space-between;align-items:flex-end;position:relative;z-index:1}
+.bk-card-flbl{font-size:8px;color:rgba(248,250,252,.32);letter-spacing:1.8px;text-transform:uppercase;margin-bottom:3px}
+.bk-card-holder{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:rgba(248,250,252,.8)}
+.bk-card-bal{font-size:22px;font-weight:800;color:var(--g);letter-spacing:-1.5px}
+.bank-quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.bk-q{background:var(--bg3);border:1px solid var(--brd);border-radius:14px;padding:14px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;color:var(--txt);transition:background .12s;-webkit-tap-highlight-color:transparent}
+.bk-q:active{background:var(--bg4)}
+.bk-q-icon{width:36px;height:36px;background:var(--bg4);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;border:1px solid var(--brd)}
+.bk-q-lbl{font-size:11px;font-weight:600;color:var(--mt)}
+.bk-tabs{display:flex;gap:0;margin:0 0 14px;border-bottom:1px solid var(--brd)}
+.bk-tab{flex:1;padding:9px 4px;background:none;border:none;color:var(--mt);font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;text-align:center;white-space:nowrap}
+.bk-tab.on{color:var(--txt);border-bottom-color:var(--g)}
+.bk-section-lbl{font-size:10px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:1.2px;margin:14px 0 8px}
+.tx-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--brd)}
+.tx-row:last-child{border-bottom:none}
+.tx-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.tx-icon.in{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2)}
+.tx-icon.out{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.15)}
+.tx-icon.dep{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.15)}
+.tx-info{flex:1;min-width:0}
+.tx-title{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-sub{font-size:11px;color:var(--mt);margin-top:2px}
+.tx-amt{font-size:14px;font-weight:700;white-space:nowrap}
+.tx-amt.pos{color:var(--g)}
+.tx-amt.neg{color:var(--r)}
+/* ── PIN ── */
+.pin-display{display:flex;justify-content:center;gap:18px;margin:18px 0 24px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--brd2);background:transparent;transition:background .12s,border-color .12s}
+.pin-dot.filled{background:var(--g);border-color:var(--g)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pin-key{background:var(--bg3);border:1px solid var(--brd);border-radius:16px;padding:16px 8px;font-size:22px;font-weight:600;cursor:pointer;text-align:center;color:var(--txt);transition:background .1s,transform .1s;-webkit-tap-highlight-color:transparent}
+.pin-key:active{background:var(--bg4);transform:scale(.92)}
+.pin-key-empty{background:none!important;border:none!important;cursor:default!important}
+.pin-key-del{font-size:18px;color:var(--mt)}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.pin-shake{animation:shake .35s ease}
 </style>
 </head>
 <body>
 
+<!-- SPLASH -->
+<div id="splash">
+  <div class="sp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"><path d="M12 21C8.5 21 6.5 18.2 6.5 15V9C6.5 5.8 8.5 3 12 3c3.5 0 5.5 2.8 5.5 6v6c0 3.2-2 6-5.5 6z"/><path d="M12 3c.4-1.2 1.6-2 3-1.5"/><line x1="9.5" y1="10" x2="14.5" y2="10" stroke-width=".9"/><line x1="9.5" y1="14" x2="14.5" y2="14" stroke-width=".9"/></svg></div>
+  <div class="sp-name">Огурец</div>
+  <div class="sp-dots"><span></span><span></span><span></span></div>
+</div>
+
 <!-- HEADER -->
 <div class="hdr">
-  <div class="hdr-icon">🥒</div>
   <div class="hdr-info">
     <div class="hdr-name" id="hdr-name">Загрузка...</div>
-    <div class="hdr-bal" id="hdr-bal">— см</div>
     <div class="hdr-loan" id="hdr-loan" style="display:none"></div>
   </div>
+  <div class="hdr-bal" id="hdr-bal">— см</div>
+  <button class="hdr-gear" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
 </div>
 
 <!-- SCROLL AREA -->
@@ -304,11 +363,9 @@ canvas#price-chart{max-height:130px}
     </div>
   </div>
   <div class="cuke-hero">
-    <div class="cuke-hat-em" id="cuke-hat"></div>
-    <div class="cuke-em">🥒</div>
-    <div class="cuke-acc-em" id="cuke-acc"></div>
+    <div class="cuke-em"><span style="font-size:80px">🥒</span></div>
     <div class="cuke-sz"><span id="sz">—</span><span class="cuke-unit"> см</span></div>
-    <div class="cuke-lbl">размер огурца</div>
+    <div class="cuke-lbl" id="cuke-lbl-home">размер огурца</div>
   </div>
   <!-- Grow -->
   <div class="card">
@@ -334,25 +391,20 @@ canvas#price-chart{max-height:130px}
   <div class="card">
     <div class="card-title">📊 Статистика</div>
     <div class="stats-row">
-      <div class="stat-box"><div class="stat-v" id="st-wins">—</div><div class="stat-l">Победы</div></div>
-      <div class="stat-box"><div class="stat-v" id="st-loses">—</div><div class="stat-l">Поражения</div></div>
-      <div class="stat-box"><div class="stat-v" id="st-max">—</div><div class="stat-l">Рекорд</div></div>
+      <div class="stat-box"><div class="stat-v" id="st-wins">—</div><div class="stat-l" id="sl-wins">Победы</div></div>
+      <div class="stat-box"><div class="stat-v" id="st-loses">—</div><div class="stat-l" id="sl-loses">Поражения</div></div>
+      <div class="stat-box"><div class="stat-v" id="st-max">—</div><div class="stat-l" id="sl-max">Рекорд</div></div>
+    </div>
+    <div id="stats-chart-wrap" style="display:none;margin-top:8px">
+      <canvas id="stats-chart" style="max-height:180px"></canvas>
     </div>
   </div>
 </div>
 
-<!-- ══ MARKET ══ -->
-<div class="page" id="pg-market">
-  <div class="sub-nav">
-    <button class="snb on" id="snb-stocks" onclick="marketSub('stocks')">📈 Акции</button>
-    <button class="snb" id="snb-port" onclick="marketSub('port')">💰 Портфель</button>
-  </div>
-  <div id="mkt-stocks">
-    <div class="spin">Загрузка акций...</div>
-  </div>
-  <div id="mkt-port" style="display:none">
-    <div class="spin">Загрузка портфеля...</div>
-  </div>
+<!-- ══ MARKET (hidden, redirected to bank) ══ -->
+<div class="page" id="pg-market" style="display:none!important">
+  <div id="snb-stocks" style="display:none"></div>
+  <div id="snb-port" style="display:none"></div>
 </div>
 
 <!-- ══ BUSINESS ══ -->
@@ -416,18 +468,36 @@ canvas#price-chart{max-height:130px}
     <div id="bg-content"><div class="spin">Загрузка нард...</div></div>
   </div>
   <div id="gm-battle" style="display:none">
-    <div class="card" id="battle-content"><div class="spin">Загрузка...</div></div>
+    <div class="sub-nav" style="margin-bottom:8px">
+      <button class="snb on" id="bs-tab-ai" onclick="bsModeSwitch('ai')">🤖 vs ИИ</button>
+      <button class="snb" id="bs-tab-mp" onclick="bsModeSwitch('mp')">👥 vs Друг</button>
+    </div>
+    <div id="bs-mode-ai">
+      <div class="card" id="battle-content"><div class="spin">Загрузка...</div></div>
+    </div>
+    <div id="bs-mode-mp" style="display:none">
+      <div id="bsmp-content"><div class="spin">Загрузка...</div></div>
+    </div>
   </div>
   <div id="gm-ttt" style="display:none">
-    <div class="card">
-      <div class="card-title">✖️ Крестики-нолики</div>
-      <div class="ttt-score">
-        <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sp">0</div><div class="ttt-score-l">Ты</div></div>
-        <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sai">0</div><div class="ttt-score-l">ИИ</div></div>
+    <div class="sub-nav" style="margin-bottom:8px">
+      <button class="snb on" id="ttt-tab-ai" onclick="tttModeSwitch('ai')">🤖 vs ИИ</button>
+      <button class="snb" id="ttt-tab-mp" onclick="tttModeSwitch('mp')">👥 vs Друг</button>
+    </div>
+    <div id="ttt-mode-ai">
+      <div class="card">
+        <div class="card-title">✖️ Крестики-нолики</div>
+        <div class="ttt-score">
+          <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sp">0</div><div class="ttt-score-l">Ты</div></div>
+          <div class="ttt-score-box"><div class="ttt-score-v" id="ttt-sai">0</div><div class="ttt-score-l">ИИ</div></div>
+        </div>
+        <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:10px" id="ttt-status">Нажми «Новая игра»</div>
+        <div class="ttt-board" id="ttt-board"></div>
+        <button class="btn btn-ghost btn-full" onclick="initTTT()">🔄 Новая игра</button>
       </div>
-      <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:10px" id="ttt-status">Нажми «Новая игра»</div>
-      <div class="ttt-board" id="ttt-board"></div>
-      <button class="btn btn-ghost btn-full" onclick="initTTT()">🔄 Новая игра</button>
+    </div>
+    <div id="ttt-mode-mp" style="display:none">
+      <div id="tttmp-content"><div class="spin">Загрузка...</div></div>
     </div>
   </div>
   <div id="gm-mine" style="display:none">
@@ -444,13 +514,102 @@ canvas#price-chart{max-height:130px}
   </div>
 </div>
 
+<!-- ══ BANK ══ -->
+<div class="page" id="pg-bank">
+  <!-- BANK CARD -->
+  <div class="bank-card">
+    <div class="bk-card-top">
+      <div class="bk-card-logo">CUK BANK</div>
+      <div class="bk-chip"></div>
+    </div>
+    <div class="bk-card-num" id="bk-card-num">•••• •••• •••• ——</div>
+    <div class="bk-card-footer">
+      <div>
+        <div class="bk-card-flbl">Владелец</div>
+        <div class="bk-card-holder" id="bk-card-holder">—</div>
+      </div>
+      <div style="text-align:right">
+        <div class="bk-card-flbl">Баланс</div>
+        <div class="bk-card-bal" id="bk-card-bal">— см</div>
+      </div>
+    </div>
+  </div>
+  <!-- QUICK ACTIONS -->
+  <div class="bank-quick">
+    <button class="bk-q" onclick="showTransfer()">
+      <div class="bk-q-icon">↗</div>
+      <span class="bk-q-lbl">Перевод</span>
+    </button>
+    <button class="bk-q" onclick="showTakeLoan()">
+      <div class="bk-q-icon">💳</div>
+      <span class="bk-q-lbl">Кредит</span>
+    </button>
+    <button class="bk-q" onclick="depTab('new');bankTab('overview')">
+      <div class="bk-q-icon">📈</div>
+      <span class="bk-q-lbl">Вклад</span>
+    </button>
+  </div>
+  <!-- SUB-TABS -->
+  <div class="bk-tabs">
+    <button class="bk-tab on" id="bkt-overview" onclick="bankTab('overview')">Счёт</button>
+    <button class="bk-tab" id="bkt-stocks" onclick="bankTab('stocks')">Акции</button>
+    <button class="bk-tab" id="bkt-port" onclick="bankTab('port')">Портфель</button>
+    <button class="bk-tab" id="bkt-history" onclick="bankTab('history')">История</button>
+  </div>
+  <!-- OVERVIEW PANEL -->
+  <div id="bkp-overview">
+    <div class="bk-section-lbl">Состояние банка</div>
+    <div class="bank-grid" id="bank-grid" style="margin-bottom:12px">
+      <div class="bank-cell"><div class="bank-v" id="bk-cap" style="color:var(--g)">—</div><div class="bank-l">Капитал (см)</div></div>
+      <div class="bank-cell"><div class="bank-v" id="bk-usr">—</div><div class="bank-l">Игроков</div></div>
+      <div class="bank-cell"><div class="bank-v" id="bk-rich" style="color:var(--gold)">—</div><div class="bank-l">Богачей ≥5000</div></div>
+      <div class="bank-cell"><div class="bank-v" id="bk-inf" style="color:var(--r)">—%</div><div class="bank-l">Инфляция</div></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div id="bank-info" style="font-size:13px;color:var(--mt);line-height:1.7">Загрузка...</div>
+    </div>
+    <div class="bk-section-lbl">Кредит</div>
+    <div class="card" id="bank-loan-section" style="margin-bottom:12px">
+      <div id="bank-loan-content"><div class="spin">Загрузка...</div></div>
+    </div>
+    <div class="bk-section-lbl">Вклады</div>
+    <div class="card" id="bank-deposit-section">
+      <div class="sub-nav" style="margin-bottom:10px">
+        <button class="dep-tab on" id="dep-tab-list" onclick="depTab('list')">Мои вклады</button>
+        <button class="dep-tab" id="dep-tab-new" onclick="depTab('new')">Открыть вклад</button>
+      </div>
+      <div id="dep-list-panel"><div class="spin">Загрузка...</div></div>
+      <div id="dep-new-panel" style="display:none">
+        <div style="font-size:13px;color:var(--mt);margin-bottom:10px">Выбери срок вклада:</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(1,5)">1 день — <b>+5%</b></button>
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(2,12)">2 дня — <b>+12%</b></button>
+          <button class="btn btn-ghost btn-full" onclick="showDepositForm(3,20)">3 дня — <b>+20%</b></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- STOCKS PANEL -->
+  <div id="bkp-stocks" style="display:none">
+    <div id="mkt-stocks"><div class="spin">Загрузка акций...</div></div>
+  </div>
+  <!-- PORTFOLIO PANEL -->
+  <div id="bkp-port" style="display:none">
+    <div id="mkt-port"><div class="spin">Загрузка портфеля...</div></div>
+  </div>
+  <!-- HISTORY PANEL -->
+  <div id="bkp-history" style="display:none">
+    <div class="card" style="padding:0 18px">
+      <div id="tx-list"><div class="spin" style="padding:16px 0">Загрузка...</div></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MORE ══ -->
 <div class="page" id="pg-more">
   <div class="sub-nav">
-    <button class="snb on" id="snb-bank" onclick="moreSub('bank')">🏦 Банк</button>
-    <button class="snb" id="snb-forbes" onclick="moreSub('forbes')">🏆 Forbes</button>
+    <button class="snb on" id="snb-forbes" onclick="moreSub('forbes')">🏆 Forbes</button>
     <button class="snb" id="snb-friends" onclick="moreSub('friends')">👥 Друзья</button>
-    <button class="snb" id="snb-wardrobe" onclick="moreSub('wardrobe')">👗 Гардероб</button>
   </div>
   <div id="mr-friends" style="display:none">
     <div class="card">
@@ -467,56 +626,11 @@ canvas#price-chart{max-height:130px}
       <div id="friends-list"><div class="spin">Загрузка...</div></div>
     </div>
   </div>
-  <div id="mr-bank">
-    <div class="card">
-      <div class="card-title">🏦 Состояние банка</div>
-      <div class="bank-grid" id="bank-grid">
-        <div class="bank-cell"><div class="bank-v" id="bk-cap" style="color:var(--b)">—</div><div class="bank-l">Капитал (см)</div></div>
-        <div class="bank-cell"><div class="bank-v" id="bk-usr">—</div><div class="bank-l">Игроков</div></div>
-        <div class="bank-cell"><div class="bank-v" id="bk-rich" style="color:var(--gold)">—</div><div class="bank-l">Богачей ≥5000</div></div>
-        <div class="bank-cell"><div class="bank-v" id="bk-inf" style="color:var(--r)">—%</div><div class="bank-l">Инфляция</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">💡 Инфо</div>
-      <div id="bank-info" style="font-size:13px;color:var(--mt);line-height:1.7">Загрузка...</div>
-    </div>
-    <!-- Loan -->
-    <div class="card" id="bank-loan-section">
-      <div class="card-title">💳 Кредит</div>
-      <div id="bank-loan-content"><div class="spin">Загрузка...</div></div>
-    </div>
-    <!-- Deposits -->
-    <div class="card" id="bank-deposit-section">
-      <div class="card-title">💰 Вклады</div>
-      <div class="sub-nav" style="margin-bottom:10px">
-        <button class="dep-tab on" id="dep-tab-list" onclick="depTab('list')">📋 Мои вклады</button>
-        <button class="dep-tab" id="dep-tab-new" onclick="depTab('new')">➕ Открыть вклад</button>
-      </div>
-      <div id="dep-list-panel"><div class="spin">Загрузка...</div></div>
-      <div id="dep-new-panel" style="display:none">
-        <div style="font-size:13px;color:var(--mt);margin-bottom:10px">Выбери срок вклада:</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-ghost btn-full" onclick="showDepositForm(1,5)">📅 1 день — <b>+5%</b></button>
-          <button class="btn btn-ghost btn-full" onclick="showDepositForm(2,12)">📅 2 дня — <b>+12%</b></button>
-          <button class="btn btn-ghost btn-full" onclick="showDepositForm(3,20)">📅 3 дня — <b>+20%</b></button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div id="mr-forbes" style="display:none">
+  <div id="mr-forbes">
     <div class="card">
       <div class="card-title">🏆 Топ-20 игроков</div>
       <div id="forbes-list"><div class="spin">Загрузка...</div></div>
     </div>
-  </div>
-  <div id="mr-wardrobe" style="display:none">
-    <div class="card" style="text-align:center;padding-bottom:8px">
-      <div class="cuke-hat-em" id="wrd-preview-hat"></div>
-      <div style="font-size:56px;line-height:1">🥒</div>
-      <div class="cuke-acc-em" id="wrd-preview-acc"></div>
-    </div>
-    <div class="card" id="wardrobe-content"><div class="spin">Загрузка...</div></div>
   </div>
 </div>
 
@@ -524,11 +638,26 @@ canvas#price-chart{max-height:130px}
 
 <!-- NAV -->
 <nav class="nav">
-  <button class="nb on" id="nb-home" onclick="tab('home')"><span class="ni">🥒</span><span>Огурец</span></button>
-  <button class="nb" id="nb-market" onclick="tab('market')"><span class="ni">📈</span><span>Рынок</span></button>
-  <button class="nb" id="nb-biz" onclick="tab('biz')"><span class="ni">🏗️</span><span>Бизнес</span></button>
-  <button class="nb" id="nb-games" onclick="tab('games')"><span class="ni">🎲</span><span>Игры</span></button>
-  <button class="nb" id="nb-more" onclick="tab('more')"><span class="ni">💼</span><span>Ещё</span></button>
+  <button class="nb on" id="nb-home" onclick="tab('home')">
+    <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"><path d="M12 21C8.5 21 6.5 18.2 6.5 15V9C6.5 5.8 8.5 3 12 3c3.5 0 5.5 2.8 5.5 6v6c0 3.2-2 6-5.5 6z"/><path d="M12 3c.4-1.2 1.6-2 3-1.5"/></svg></span>
+    <span>Огурец</span>
+  </button>
+  <button class="nb" id="nb-bank" onclick="tab('bank')">
+    <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg></span>
+    <span>Банк</span>
+  </button>
+  <button class="nb" id="nb-biz" onclick="tab('biz')">
+    <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span>
+    <span>Бизнес</span>
+  </button>
+  <button class="nb" id="nb-games" onclick="tab('games')">
+    <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="6"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="17" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="17" cy="14" r="1" fill="currentColor" stroke="none"/></svg></span>
+    <span>Игры</span>
+  </button>
+  <button class="nb" id="nb-more" onclick="tab('more')">
+    <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+    <span>Ещё</span>
+  </button>
 </nav>
 
 <!-- MODAL -->
@@ -540,6 +669,56 @@ canvas#price-chart{max-height:130px}
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Отмена</button>
       <button class="btn btn-g" id="modal-ok" style="flex:2">OK</button>
     </div>
+  </div>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div class="ov" id="ov-settings" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-title"><span id="set-title">Настройки</span></div>
+    <div class="modal-label" id="set-name-lbl">Имя</div>
+    <input class="modal-inp" id="settings-name-inp" type="text" maxlength="32" placeholder="Твоё имя">
+    <button class="btn btn-g btn-full" onclick="saveName()" style="margin-bottom:14px" id="set-save-btn">💾 Сохранить имя</button>
+    <div class="modal-label" id="set-lang-lbl">Язык / Language</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="lang-btn" id="lang-ru" onclick="setLang('ru')">🇷🇺 Русский</button>
+      <button class="lang-btn" id="lang-en" onclick="setLang('en')">🇬🇧 English</button>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin:14px 0"></div>
+    <div class="modal-label">Безопасность</div>
+    <div id="pin-setting-section"></div>
+    <div style="border-top:1px solid var(--brd);margin:14px 0"></div>
+    <div style="text-align:center;font-size:12px;color:var(--mt)">Версия 1.0.0</div>
+    <div style="text-align:center;font-size:11px;color:var(--mt);margin-top:2px">Made by Barinov &amp; Co Technologies</div>
+    <button class="btn btn-ghost btn-full" onclick="closeSettings()" style="margin-top:14px" id="set-close-btn">✕ Закрыть</button>
+  </div>
+</div>
+
+<!-- PIN OVERLAY -->
+<div class="ov" id="ov-pin" style="align-items:center;z-index:10000">
+  <div class="modal">
+    <div class="modal-title" id="pin-title">🔒 Введи PIN-код</div>
+    <div class="pin-display" id="pin-dots">
+      <span class="pin-dot" id="pd0"></span>
+      <span class="pin-dot" id="pd1"></span>
+      <span class="pin-dot" id="pd2"></span>
+      <span class="pin-dot" id="pd3"></span>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key pin-key-empty" disabled></button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key pin-key-del" onclick="pinDel()">⌫</button>
+    </div>
+    <button class="btn btn-ghost btn-full" id="pin-cancel-btn" onclick="cancelPin()" style="display:none">Отмена</button>
   </div>
 </div>
 
@@ -565,7 +744,7 @@ let growTick = null, boxTick = null;
 let curTicker = null, priceChart = null;
 let spinning = false, bgLoaded = false;
 let friendsData = null;
-let curTab = 'home', curMarketSub = 'stocks', curBizSub = 'mybiz', curGamesSub = 'slots', curMoreSub = 'bank';
+let curTab = 'home', curMarketSub = 'stocks', curBizSub = 'mybiz', curGamesSub = 'slots', curMoreSub = 'forbes';
 const GROW_CD = 86400, BOX_CD = 3600;
 const ADMIN_USER_ID = 5971748042;
 
@@ -579,10 +758,13 @@ window.addEventListener('load', async () => {
     userId = id ? parseInt(id) : null;
     document.getElementById('hdr-name').textContent = userId ? 'Тест' : 'Гость';
   }
+  applyLang();
+  checkPinOnStart();
   if (userId) {
-    await loadUser(); loadBoxCd(); loadStocks(); loadBank(); loadNews(); loadCosmetics();
-    // Handle deep-link invite to backgammon game
-    const bgParam = new URLSearchParams(window.location.search).get('bg');
+    await loadUser(); loadBoxCd(); loadStocks(); loadBank(); loadNews(); loadStatsChart();
+    var sp=document.getElementById('splash'); sp.classList.add('out'); setTimeout(function(){sp.style.display='none';},500);
+    const params = new URLSearchParams(window.location.search);
+    const bgParam = params.get('bg');
     if (bgParam) {
       const gid = parseInt(bgParam);
       if (gid) {
@@ -600,8 +782,32 @@ window.addEventListener('load', async () => {
         }, 400);
       }
     }
+    const tttParam = params.get('ttt');
+    if (tttParam) {
+      const gid = parseInt(tttParam);
+      if (gid) {
+        tab('games'); gamesSub('ttt'); tttModeSwitch('mp');
+        setTimeout(async function() {
+          var res = await api('POST', '/api/ttt/join/' + userId + '/' + gid, {});
+          if (res.ok && res.data.success) { tttMpGameId = gid; loadTTTGame(); }
+          else { loadTTTLobby(); showToast('Не удалось войти в игру', true); }
+        }, 400);
+      }
+    }
+    const bsParam = params.get('bs');
+    if (bsParam) {
+      const gid = parseInt(bsParam);
+      if (gid) {
+        tab('games'); gamesSub('battle'); bsModeSwitch('mp');
+        setTimeout(async function() {
+          var res = await api('POST', '/api/bs/join/' + userId + '/' + gid, {});
+          if (res.ok && res.data.success) { bsMpGameId = gid; bsMpMyBoard = res.data.my_board; loadBSGame(); }
+          else { loadBSLobby(); showToast('Не удалось войти в игру', true); }
+        }, 400);
+      }
+    }
   }
-  else { document.getElementById('hdr-name').textContent = 'Открой через Telegram'; }
+  else { document.getElementById('hdr-name').textContent = 'Открой через Telegram'; var sp=document.getElementById('splash'); sp.classList.add('out'); setTimeout(function(){sp.style.display='none';},500); }
 });
 
 // ══════════════════════════════════════════════
@@ -640,6 +846,219 @@ async function api(method, url, body){
 }
 
 // ══════════════════════════════════════════════
+// i18n
+// ══════════════════════════════════════════════
+var LANG = localStorage.getItem('lang') || 'ru';
+var I18N = {
+  ru: {
+    cucumber:'Огурец',bank:'Банк',biz:'Бизнес',games:'Игры',more:'Ещё',
+    wins:'Победы',loses:'Поражения',record:'Рекорд',
+    settings:'Настройки','name-lbl':'Имя','save-name':'💾 Сохранить имя',
+    'lang-lbl':'Язык / Language',close:'✕ Закрыть'
+  },
+  en: {
+    cucumber:'Cucumber',bank:'Bank',biz:'Business',games:'Games',more:'More',
+    wins:'Wins',loses:'Losses',record:'Record',
+    settings:'Settings','name-lbl':'Name','save-name':'💾 Save name',
+    'lang-lbl':'Language',close:'✕ Close'
+  }
+};
+function t(key){ return (I18N[LANG] && I18N[LANG][key]) || key; }
+function applyLang(){
+  var nbh=document.getElementById('nb-home'); if(nbh) nbh.querySelector('span:last-child').textContent=t('cucumber');
+  var nbm=document.getElementById('nb-bank'); if(nbm) nbm.querySelector('span:last-child').textContent=t('bank');
+  var nbb=document.getElementById('nb-biz'); if(nbb) nbb.querySelector('span:last-child').textContent=t('biz');
+  var nbg=document.getElementById('nb-games'); if(nbg) nbg.querySelector('span:last-child').textContent=t('games');
+  var nbo=document.getElementById('nb-more'); if(nbo) nbo.querySelector('span:last-child').textContent=t('more');
+  var sw=document.getElementById('sl-wins'); if(sw) sw.textContent=t('wins');
+  var sl=document.getElementById('sl-loses'); if(sl) sl.textContent=t('loses');
+  var sm=document.getElementById('sl-max'); if(sm) sm.textContent=t('record');
+  var st=document.getElementById('set-title'); if(st) st.textContent=t('settings');
+  var snl=document.getElementById('set-name-lbl'); if(snl) snl.textContent=t('name-lbl');
+  var ssb=document.getElementById('set-save-btn'); if(ssb) ssb.textContent=t('save-name');
+  var sll=document.getElementById('set-lang-lbl'); if(sll) sll.textContent=t('lang-lbl');
+  var scb=document.getElementById('set-close-btn'); if(scb) scb.textContent=t('close');
+  updateLangBtns();
+}
+function updateLangBtns(){
+  var ru=document.getElementById('lang-ru'), en=document.getElementById('lang-en');
+  if(ru) ru.className='lang-btn'+(LANG==='ru'?' on':'');
+  if(en) en.className='lang-btn'+(LANG==='en'?' on':'');
+}
+function setLang(lang){ LANG=lang; localStorage.setItem('lang',lang); applyLang(); }
+
+// ══════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════
+function openSettings(){
+  var inp=document.getElementById('settings-name-inp');
+  if(inp && userData) inp.value = userData.name || '';
+  updateLangBtns();
+  renderPinSettingSection();
+  document.getElementById('ov-settings').classList.add('on');
+}
+function closeSettings(){ document.getElementById('ov-settings').classList.remove('on'); }
+async function saveName(){
+  var inp=document.getElementById('settings-name-inp');
+  var name=(inp&&inp.value||'').trim();
+  if(!name||!userId){ showToast('Введи имя',true); return; }
+  var r=await api('POST','/api/settings/'+userId+'/name',{name:name});
+  if(r.ok&&r.data.success){
+    showToast('✅ Имя сохранено!');
+    document.getElementById('hdr-name').textContent=name;
+    if(userData) userData.name=name;
+  } else showToast('❌ Ошибка',true);
+}
+
+// ══════════════════════════════════════════════
+// PIN / SECURITY
+// ══════════════════════════════════════════════
+var PIN_KEY = 'cuk_pin';
+var pinBuffer = '';
+var pinMode = 'login';
+var pinTempNew = '';
+
+function checkPinOnStart(){
+  if (localStorage.getItem(PIN_KEY)) {
+    pinMode = 'login';
+    document.getElementById('pin-title').textContent = '🔒 Введи PIN-код';
+    document.getElementById('pin-cancel-btn').style.display = 'none';
+    document.getElementById('ov-pin').classList.add('on');
+  }
+}
+function showPinOverlay(){
+  pinBuffer = '';
+  renderPinDots();
+  document.getElementById('ov-pin').classList.add('on');
+}
+function hidePinOverlay(){
+  document.getElementById('ov-pin').classList.remove('on');
+}
+function renderPinDots(){
+  for (var i = 0; i < 4; i++) {
+    var d = document.getElementById('pd'+i);
+    if (d) d.classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+function pinKey(k){
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += k;
+  renderPinDots();
+  if (pinBuffer.length === 4) setTimeout(processPinInput, 100);
+}
+function pinDel(){
+  if (pinBuffer.length > 0) { pinBuffer = pinBuffer.slice(0,-1); renderPinDots(); }
+}
+function processPinInput(){
+  var stored = localStorage.getItem(PIN_KEY);
+  if (pinMode === 'login') {
+    if (pinBuffer === stored) {
+      hidePinOverlay();
+    } else {
+      pinBuffer = ''; renderPinDots();
+      var dots = document.getElementById('pin-dots');
+      dots.classList.remove('pin-shake');
+      void dots.offsetWidth;
+      dots.classList.add('pin-shake');
+      setTimeout(function(){ dots.classList.remove('pin-shake'); }, 400);
+    }
+  } else if (pinMode === 'set') {
+    pinTempNew = pinBuffer; pinBuffer = ''; renderPinDots();
+    pinMode = 'confirm';
+    document.getElementById('pin-title').textContent = '🔒 Повтори PIN-код';
+  } else if (pinMode === 'confirm') {
+    if (pinBuffer === pinTempNew) {
+      localStorage.setItem(PIN_KEY, pinBuffer);
+      hidePinOverlay();
+      renderPinSettingSection();
+      showToast('PIN-код установлен');
+    } else {
+      pinBuffer = ''; pinTempNew = ''; renderPinDots();
+      pinMode = 'set';
+      document.getElementById('pin-title').textContent = '🔒 Придумай PIN-код';
+      var dots = document.getElementById('pin-dots');
+      dots.classList.remove('pin-shake');
+      void dots.offsetWidth;
+      dots.classList.add('pin-shake');
+      setTimeout(function(){ dots.classList.remove('pin-shake'); showToast('Коды не совпали, попробуй снова', true); }, 400);
+    }
+  }
+}
+function cancelPin(){ hidePinOverlay(); }
+function showSetPin(){
+  closeSettings();
+  setTimeout(function(){
+    pinMode = 'set'; pinBuffer = ''; pinTempNew = '';
+    document.getElementById('pin-title').textContent = '🔒 Придумай PIN-код';
+    document.getElementById('pin-cancel-btn').style.display = '';
+    showPinOverlay();
+  }, 200);
+}
+function removePin(){
+  localStorage.removeItem(PIN_KEY);
+  renderPinSettingSection();
+  showToast('PIN-код удалён');
+}
+function renderPinSettingSection(){
+  var el = document.getElementById('pin-setting-section');
+  if (!el) return;
+  var hasPin = !!localStorage.getItem(PIN_KEY);
+  if (hasPin) {
+    el.innerHTML =
+      '<button class="btn btn-ghost btn-full" onclick="showSetPin()" style="margin-bottom:6px">✏️ Изменить PIN-код</button>'+
+      '<button class="btn btn-r btn-full" onclick="removePin()">🔓 Удалить PIN-код</button>';
+  } else {
+    el.innerHTML = '<button class="btn btn-ghost btn-full" onclick="showSetPin()">🔒 Установить PIN-код</button>';
+  }
+}
+
+// ══════════════════════════════════════════════
+// GAME REWARDS
+// ══════════════════════════════════════════════
+async function claimSoloReward(gameType){
+  if(!userId) return;
+  try{
+    var r=await api('POST','/api/game-reward/'+userId,{game_type:gameType});
+    if(r.ok&&r.data.success){ showToast('+'+r.data.reward+' см за победу! 🏆'); loadUser(); }
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════════
+// STATS CHART
+// ══════════════════════════════════════════════
+var statsChart = null;
+async function loadStatsChart(){
+  if(!userId) return;
+  try{
+    var r=await api('GET','/api/stats-chart/'+userId);
+    if(r.ok&&r.data.stats) renderStatsChart(r.data.stats);
+  }catch(e){}
+}
+function renderStatsChart(stats){
+  var wrap=document.getElementById('stats-chart-wrap');
+  var canvas=document.getElementById('stats-chart');
+  if(!wrap||!canvas||typeof Chart==='undefined') return;
+  var games=Object.keys(stats);
+  if(!games.length){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  var labelMap={ttt:'TTT',mine:'Сапёр',battle:'М.Бой',backgammon:'Нарды'};
+  var labels=games.map(function(g){ return labelMap[g]||g; });
+  var wins=games.map(function(g){ return (stats[g].win||0)+(stats[g].solo_win||0); });
+  var losses=games.map(function(g){ return stats[g].loss||0; });
+  if(statsChart) statsChart.destroy();
+  statsChart=new Chart(canvas,{
+    type:'bar',
+    data:{labels:labels,datasets:[
+      {label:t('wins'),data:wins,backgroundColor:'rgba(63,185,80,.7)'},
+      {label:t('loses'),data:losses,backgroundColor:'rgba(248,81,73,.7)'}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#e6edf3'}}},
+      scales:{x:{ticks:{color:'#666'},grid:{color:'#222'}},
+              y:{ticks:{color:'#666'},grid:{color:'#222'},beginAtZero:true}}}
+  });
+}
+
+// ══════════════════════════════════════════════
 // TABS
 // ══════════════════════════════════════════════
 function tab(name){
@@ -648,14 +1067,12 @@ function tab(name){
   document.getElementById('pg-'+name).classList.add('on');
   document.getElementById('nb-'+name).classList.add('on');
   curTab = name;
-  if (name === 'market') { loadStocks(); if (curMarketSub === 'port') loadPortfolio(); }
+  if (name === 'bank') { loadBank(); }
   if (name === 'biz') { loadBusiness(); if (curBizSub === 'clan') loadClan(); }
   if (name === 'games' && curGamesSub === 'bg') { if (!bgLoaded) loadBg(); }
   if (name === 'more') {
-    if (curMoreSub === 'bank') loadBank();
-    else if (curMoreSub === 'forbes') loadForbes();
+    if (curMoreSub === 'forbes') loadForbes();
     else if (curMoreSub === 'friends') loadFriends();
-    else if (curMoreSub === 'wardrobe') loadWardrobe();
   }
 }
 
@@ -682,20 +1099,104 @@ function gamesSub(name){
     document.getElementById('gm-'+n).style.display = n===name?'':'none';
   });
   if (name === 'bg' && !bgLoaded) loadBg();
-  if (name === 'battle' && !bsInited) initBattleship();
-  if (name === 'ttt' && !tttInited) initTTT();
+  if (name === 'battle') { if (curBSMode==='ai' && !bsInited) initBattleship(); else if (curBSMode==='mp') loadBSLobby(); }
+  if (name === 'ttt') { if (curTTTMode==='ai' && !tttInited) initTTT(); else if (curTTTMode==='mp') loadTTTLobby(); }
   if (name === 'mine' && !mineInited) initMine();
+}
+
+var curTTTMode = 'ai';
+function tttModeSwitch(mode){
+  curTTTMode = mode;
+  document.getElementById('ttt-tab-ai').classList.toggle('on', mode==='ai');
+  document.getElementById('ttt-tab-mp').classList.toggle('on', mode==='mp');
+  document.getElementById('ttt-mode-ai').style.display = mode==='ai'?'':'none';
+  document.getElementById('ttt-mode-mp').style.display = mode==='mp'?'':'none';
+  if (mode==='mp') loadTTTLobby();
+  else if (mode==='ai' && !tttInited) initTTT();
+}
+
+var curBSMode = 'ai';
+function bsModeSwitch(mode){
+  curBSMode = mode;
+  document.getElementById('bs-tab-ai').classList.toggle('on', mode==='ai');
+  document.getElementById('bs-tab-mp').classList.toggle('on', mode==='mp');
+  document.getElementById('bs-mode-ai').style.display = mode==='ai'?'':'none';
+  document.getElementById('bs-mode-mp').style.display = mode==='mp'?'':'none';
+  if (mode==='mp') loadBSLobby();
+  else if (mode==='ai' && !bsInited) initBattleship();
 }
 function moreSub(name){
   curMoreSub = name;
-  ['bank','forbes','friends','wardrobe'].forEach(function(n){
+  ['forbes','friends'].forEach(function(n){
     document.getElementById('snb-'+n).classList.toggle('on', n===name);
     document.getElementById('mr-'+n).style.display = n===name?'':'none';
   });
-  if (name === 'bank') loadBank();
   if (name === 'forbes') loadForbes();
   if (name === 'friends') loadFriends();
-  if (name === 'wardrobe') loadWardrobe();
+}
+
+// ── BANK TAB SUB-NAVIGATION ──
+var curBankTab = 'overview';
+function bankTab(name){
+  curBankTab = name;
+  ['overview','stocks','port','history'].forEach(function(n){
+    var t = document.getElementById('bkt-'+n);
+    var p = document.getElementById('bkp-'+n);
+    if(t) t.classList.toggle('on', n===name);
+    if(p) p.style.display = n===name?'':'none';
+  });
+  if(name==='stocks'){ loadStocks(); }
+  if(name==='port'){ loadPortfolio(); }
+  if(name==='overview'){ loadBankUser(); }
+  if(name==='history'){ loadHistory(); }
+}
+
+function goToStocks(){
+  tab('bank');
+  setTimeout(function(){ bankTab('stocks'); }, 10);
+}
+
+// ── TRANSFER ──
+function showTransfer(){
+  if(!userId){ showToast('Открой через Telegram', true); return; }
+  openModal('Перевод см',
+    '<div class="modal-label">ID получателя (Telegram)</div>' +
+    '<input class="modal-inp" id="tr-to-id" type="number" placeholder="123456789" inputmode="numeric">' +
+    '<div class="modal-label">Сумма (см)</div>' +
+    '<input class="modal-inp" id="tr-amount" type="number" placeholder="0" inputmode="numeric" min="1">' +
+    '<div style="font-size:12px;color:var(--mt);margin-top:4px" id="tr-fee">Комиссия: 5%</div>',
+    '↗ Перевести', doTransfer
+  );
+  setTimeout(function(){
+    var amtEl = document.getElementById('tr-amount');
+    if(!amtEl) return;
+    amtEl.oninput = function(){
+      var a = parseInt(amtEl.value)||0;
+      var c = Math.max(1, Math.round(a*0.05));
+      var fee = document.getElementById('tr-fee');
+      if(fee) fee.textContent = 'Комиссия 5%: ' + c + ' см · Итого: ' + (a+c) + ' см';
+    };
+  }, 60);
+}
+async function doTransfer(){
+  var toId = parseInt(document.getElementById('tr-to-id')?.value);
+  var amount = parseInt(document.getElementById('tr-amount')?.value);
+  if(!toId || toId <= 0){ showToast('Введи ID получателя', true); return; }
+  if(!amount || amount <= 0){ showToast('Введи сумму', true); return; }
+  closeModal();
+  try {
+    var r = await api('POST', '/api/transfer/' + userId, {to_id: toId, amount: amount});
+    if(r.ok && r.data.success){
+      showToast('✅ Переведено ' + r.data.sent + ' см (комиссия ' + r.data.commission + ' см)', false);
+      loadUser();
+    } else {
+      var err = r.data.error;
+      if(err === 'insufficient') showToast('❌ Нужно ' + r.data.need + ' см', true);
+      else if(err === 'receiver_not_found') showToast('❌ Получатель не найден', true);
+      else if(err === 'self_transfer') showToast('❌ Нельзя переводить себе', true);
+      else showToast('❌ Ошибка перевода', true);
+    }
+  } catch(e){ showToast('❌ Нет связи', true); }
 }
 
 // ══════════════════════════════════════════════
@@ -721,6 +1222,19 @@ async function loadUser(){
     growCd = data.cooldown_remaining || 0;
     startGrowTimer();
     document.getElementById('slot-bal').textContent = 'Баланс: ' + data.size + ' см';
+    // Update bank card
+    var bkBal = document.getElementById('bk-card-bal');
+    if(bkBal) bkBal.textContent = data.size + ' см';
+    var bkHolder = document.getElementById('bk-card-holder');
+    if(bkHolder) bkHolder.textContent = (data.name || 'Игрок').toUpperCase().slice(0,14);
+    var bkNum = document.getElementById('bk-card-num');
+    if(bkNum && userId){
+      var id = String(userId);
+      var groups = [];
+      for(var i=0;i<id.length;i+=4) groups.push(id.slice(i,i+4));
+      while(groups.length < 4) groups.unshift('••••');
+      bkNum.textContent = groups.join(' ');
+    }
   } catch(e) {}
 }
 
@@ -920,7 +1434,7 @@ async function loadChart(ticker){
       chartInst = new Chart(document.getElementById('price-chart'), {
         type: 'line',
         data: { labels, datasets: [{ data: vals, borderColor: color, backgroundColor: color+'22', borderWidth: 2, pointRadius: 0, fill: true, tension: .35 }] },
-        options: { responsive:true, maintainAspectRatio:false, animation:{duration:300}, plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>c.parsed.y.toFixed(2)+' см'}}}, scales:{x:{grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:9},maxTicksLimit:6,maxRotation:0}},y:{grid:{color:'#21262d'},ticks:{color:'#8b949e',font:{size:9},callback:v=>v>=1?v.toFixed(0):v.toFixed(2)}}}}
+        options: { responsive:true, maintainAspectRatio:false, animation:{duration:300}, plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>c.parsed.y.toFixed(2)+' см'}}}, scales:{x:{grid:{color:'#222'},ticks:{color:'#666',font:{size:9},maxTicksLimit:6,maxRotation:0}},y:{grid:{color:'#222'},ticks:{color:'#666',font:{size:9},callback:v=>v>=1?v.toFixed(0):v.toFixed(2)}}}}
       });
     } else {
       document.getElementById('chart-empty').textContent = 'Недостаточно данных для графика';
@@ -1330,6 +1844,37 @@ async function loadBankUser(){
     renderLoan();
     renderDeposits();
   } catch(e) {}
+}
+async function loadHistory(){
+  var el = document.getElementById('tx-list');
+  if (!userId){ el.innerHTML = '<div class="no-data" style="padding:16px 0">Открой через Telegram</div>'; return; }
+  el.innerHTML = '<div class="spin" style="padding:16px 0">Загрузка...</div>';
+  try {
+    var r = await api('GET', '/api/tx-log/'+userId);
+    if (!r.ok){ el.innerHTML = '<div class="no-data" style="padding:16px 0">Ошибка загрузки</div>'; return; }
+    var txs = r.data.transactions || [];
+    if (!txs.length){ el.innerHTML = '<div class="no-data" style="padding:16px 0">Нет операций</div>'; return; }
+    var icons = {transfer_out:'↗',transfer_in:'↙',loan:'💵',loan_repay:'💳',deposit:'📈',deposit_claim:'💰'};
+    var iconCls = {transfer_out:'out',transfer_in:'in',loan:'dep',loan_repay:'out',deposit:'dep',deposit_claim:'in'};
+    var labels = {transfer_out:'Перевод',transfer_in:'Входящий перевод',loan:'Кредит',loan_repay:'Погашение кредита',deposit:'Вклад открыт',deposit_claim:'Вклад получен'};
+    el.innerHTML = txs.map(function(tx){
+      var sign = tx.amount > 0 ? '+' : '';
+      var amtCls = tx.amount > 0 ? 'pos' : 'neg';
+      var ic = iconCls[tx.type] || 'dep';
+      var ico = icons[tx.type] || '•';
+      var lbl = labels[tx.type] || tx.type;
+      var sub = tx.counterpart_name ? (tx.amount > 0 ? 'От: ' : 'Кому: ') + tx.counterpart_name : tx.description || '';
+      var dt = tx.created_at ? tx.created_at.slice(0,16).replace('T',' ') : '';
+      return '<div class="tx-row">'+
+        '<div class="tx-icon '+ic+'">'+ico+'</div>'+
+        '<div class="tx-info">'+
+          '<div class="tx-title">'+lbl+'</div>'+
+          '<div class="tx-sub">'+(sub||dt)+'</div>'+
+        '</div>'+
+        '<div class="tx-amt '+amtCls+'">'+sign+fmt(Math.abs(tx.amount))+' см</div>'+
+      '</div>';
+    }).join('');
+  } catch(e){ el.innerHTML = '<div class="no-data" style="padding:16px 0">Ошибка</div>'; }
 }
 function renderLoan(){
   var el = document.getElementById('bank-loan-content');
@@ -1894,7 +2439,7 @@ function mineClickCell(idx){
   mineRevealFlood(idx);
   var won=true;
   for(var i=0;i<MINE_R*MINE_C;i++) if(!mineCells[i].mine&&!mineCells[i].revealed){won=false;break;}
-  if(won){mineGameOver=true;document.getElementById('mine-status').textContent='🏆 Победа!';}
+  if(won){mineGameOver=true;document.getElementById('mine-status').textContent='🏆 Победа!';claimSoloReward('mine');}
   renderMine(false);
 }
 function mineToggleFlag(idx){
@@ -1972,7 +2517,7 @@ function tttClick(i){
   if(tttGameOver||tttBoard[i]) return;
   tttBoard[i]='X';
   var win=tttCheckWinner(tttBoard,'X');
-  if(win){tttWinLine=win;tttGameOver=true;tttScoreP++;renderTTT();document.getElementById('ttt-status').textContent='🏆 Ты победил!';updateTTTScore();return;}
+  if(win){tttWinLine=win;tttGameOver=true;tttScoreP++;renderTTT();document.getElementById('ttt-status').textContent='🏆 Ты победил!';updateTTTScore();claimSoloReward('ttt');return;}
   var empty=false; for(var j=0;j<9;j++) if(!tttBoard[j]){empty=true;break;}
   if(!empty){tttGameOver=true;renderTTT();document.getElementById('ttt-status').textContent='🤝 Ничья!';return;}
   document.getElementById('ttt-status').textContent='Думает... 🤖';
@@ -2040,7 +2585,7 @@ function bsShoot(idx){
   if(bsGameOver||bsPShots[idx]) return;
   bsPShots[idx]=true;
   var eSunk=0; for(var i=0;i<BS_SIZE;i++) if(bsE[i]&&bsPShots[i]) eSunk++;
-  if(eSunk>=BS_TOTAL){bsGameOver=true;renderBattleship('🏆 Победа! Флот врага уничтожен!');return;}
+  if(eSunk>=BS_TOTAL){bsGameOver=true;renderBattleship('🏆 Победа! Флот врага уничтожен!');claimSoloReward('battle');return;}
   var eIdx=bsEnemyShoot();
   bsEShots[eIdx]=true;
   if(bsP[eIdx]){
@@ -2096,69 +2641,215 @@ function renderBattleship(msg){
   el.innerHTML=html;
 }
 
-// ══ WARDROBE ══════════════════════════════════════════════════════════════════
-var cosmeticsData = null;
+// ══ TTT MULTIPLAYER ══════════════════════════════════════════════════════════
+var tttMpGameId=null, tttMpState=null, tttMpPoll=null;
 
-async function loadCosmetics(){
-  if(!userId) return;
-  try{
-    var r=await api('GET','/api/cosmetics/'+userId);
-    if(r.ok){cosmeticsData=r.data; renderCukeOutfit();}
-  }catch(e){}
-}
-function renderCukeOutfit(){
-  if(!cosmeticsData) return;
-  var eq=cosmeticsData.equipped||{}, cat=cosmeticsData.catalog||{};
-  var hatEm='', accEm='';
-  var hats=cat.hat||[];
-  for(var i=0;i<hats.length;i++) if(hats[i].id===eq.hat){hatEm=hats[i].emoji||'';break;}
-  var accs=cat.accessory||[];
-  for(var i=0;i<accs.length;i++) if(accs[i].id===eq.accessory){accEm=accs[i].emoji||'';break;}
-  var h=document.getElementById('cuke-hat'); if(h) h.textContent=hatEm;
-  var a=document.getElementById('cuke-acc'); if(a) a.textContent=accEm;
-  var ph=document.getElementById('wrd-preview-hat'); if(ph) ph.textContent=hatEm;
-  var pa=document.getElementById('wrd-preview-acc'); if(pa) pa.textContent=accEm;
-}
-async function loadWardrobe(){
-  if(!userId) return;
-  var el=document.getElementById('wardrobe-content'); if(!el) return;
+async function loadTTTLobby(){
+  var el=document.getElementById('tttmp-content'); if(!el) return;
   el.innerHTML='<div class="spin">Загрузка...</div>';
   try{
-    var r=await api('GET','/api/cosmetics/'+userId);
+    var r=await api('GET','/api/ttt/lobby/'+userId);
     if(!r.ok){el.innerHTML='<div class="no-data">Ошибка</div>';return;}
-    cosmeticsData=r.data; renderCukeOutfit(); renderWardrobe();
+    var lobby=r.data.lobby||[];
+    var html='<div class="card"><button class="btn btn-g btn-full" style="margin-bottom:10px" onclick="showCreateTTT()">➕ Создать игру</button>';
+    if(!lobby.length){ html+='<div class="no-data">Нет открытых игр</div>'; }
+    else { for(var i=0;i<lobby.length;i++){ var g=lobby[i]; html+='<div class="bg-lobby-item"><div><b>'+esc(g.host)+'</b><div style="font-size:11px;color:var(--mt)">Ставка: '+g.bet+' см</div></div><button class="btn btn-b btn-sm" onclick="joinTTTGame('+g.game_id+')">Войти</button></div>'; } }
+    el.innerHTML=html+'</div>';
   }catch(e){el.innerHTML='<div class="no-data">Нет связи</div>';}
 }
-function renderWardrobe(){
-  var el=document.getElementById('wardrobe-content'); if(!el||!cosmeticsData) return;
-  var cat=cosmeticsData.catalog||{}, owned=cosmeticsData.owned||[], eq=cosmeticsData.equipped||{};
-  var ownedSet={};
-  for(var i=0;i<owned.length;i++) ownedSet[owned[i]]=true;
-  var html='';
-  var slots=[{key:'hat',label:'🎩 Шляпы'},{key:'accessory',label:'💫 Аксессуары'}];
-  for(var s=0;s<slots.length;s++){
-    var slot=slots[s].key, items=cat[slot]||[];
-    html+='<div class="wrd-section"><div class="wrd-section-title">'+slots[s].label+'</div><div class="wrd-grid">';
-    for(var i=0;i<items.length;i++){
-      var it=items[i], isEq=eq[slot]===it.id, isOwned=ownedSet[it.id]||it.price===0;
-      var cls='wrd-item'+(isEq?' equipped':'');
-      var priceHtml=it.price===0?'<div class="wrd-item-owned">Бесплатно</div>':(isOwned?'<div class="wrd-item-owned">✅ Есть</div>':'<div class="wrd-item-price">'+fmt(it.price)+' см</div>');
-      var btnHtml=isEq?'<div style="font-size:10px;color:var(--g);margin-top:4px">Надето</div>':(isOwned?'<button class="btn btn-g btn-sm btn-full" style="margin-top:4px;padding:4px 0" onclick="wardrobeEquip(\''+slot+'\',\''+it.id+'\')">Надеть</button>':'<button class="btn btn-gold btn-sm btn-full" style="margin-top:4px;padding:4px 0" onclick="wardrobeBuy(\''+slot+'\',\''+it.id+'\')">Купить</button>');
-      html+='<div class="'+cls+'"><div class="wrd-item-em">'+(it.emoji||'〇')+'</div><div class="wrd-item-name">'+esc(it.name)+'</div>'+priceHtml+btnHtml+'</div>';
-    }
-    html+='</div></div>';
-  }
-  el.innerHTML=html;
+
+function showCreateTTT(){
+  openModal('➕ Создать TTT','<label class="modal-label">Ставка (см)</label><input class="modal-inp" id="ttt-bet-inp" type="number" value="0" min="0">','Создать',createTTTGame);
 }
-async function wardrobeBuy(slot,itemId){
-  var r=await api('POST','/api/cosmetics/'+userId+'/buy',{item_id:itemId});
-  if(r.ok&&r.data.success){showToast('✅ Куплено!');loadWardrobe();}
-  else showToast('❌ '+(r.data.error==='insufficient'?'Недостаточно см (нужно '+r.data.need+')':(r.data.error||'Ошибка')),true);
-}
-async function wardrobeEquip(slot,itemId){
-  var r=await api('POST','/api/cosmetics/'+userId+'/equip',{slot:slot,item_id:itemId});
-  if(r.ok&&r.data.success){showToast('✅ Надето!');loadWardrobe();}
+async function createTTTGame(){
+  var bet=parseInt(document.getElementById('ttt-bet-inp').value)||0;
+  closeModal();
+  var r=await api('POST','/api/ttt/create/'+userId,{bet:bet});
+  if(r.ok&&r.data.success){ tttMpGameId=r.data.game_id; loadTTTGame(); }
   else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function joinTTTGame(gid){
+  var r=await api('POST','/api/ttt/join/'+userId+'/'+gid,{});
+  if(r.ok&&r.data.success){ tttMpGameId=gid; loadTTTGame(); }
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function loadTTTGame(){
+  if(!tttMpGameId) return;
+  clearTimeout(tttMpPoll);
+  var r=await api('GET','/api/ttt/state/'+tttMpGameId+'/'+userId);
+  if(!r.ok){showToast('❌ Ошибка',true);return;}
+  tttMpState=r.data; renderTTTMp();
+  if(r.data.status==='waiting'||r.data.status==='active') tttMpPoll=setTimeout(loadTTTGame,3000);
+}
+function renderTTTMp(){
+  var el=document.getElementById('tttmp-content'); if(!el||!tttMpState) return;
+  var s=tttMpState;
+  if(s.status==='waiting'){
+    var html='<div class="card"><div class="card-title">✖️ Ожидание противника...</div><div style="text-align:center;font-size:13px;color:var(--mt);margin:10px 0">Игра #'+s.game_id+' · Ставка: '+s.bet+' см</div>';
+    html+='<button class="btn btn-b btn-full" style="margin-bottom:8px" onclick="showInviteTTT('+s.game_id+')">📨 Пригласить друга</button><button class="btn btn-ghost btn-full" onclick="resignTTT()">🚪 Отменить</button></div>';
+    el.innerHTML=html; return;
+  }
+  var myMark=s.my_mark, oppName=myMark==='X'?(s.p2name||'Игрок 2'):(s.p1name||'Игрок 1');
+  var statusTxt='';
+  if(s.status==='finished'||s.status==='draw'){
+    if(!s.winner_id) statusTxt='🤝 Ничья!';
+    else if(s.winner_id===userId) statusTxt='🏆 Ты победил!';
+    else statusTxt='😞 Противник победил';
+  } else { statusTxt=s.my_turn?'Твой ход ('+myMark+')':'Ход противника...'; }
+  var cells=s.board.split(',');
+  var html='<div class="card"><div class="card-title">✖️ TTT vs '+esc(oppName)+'</div>';
+  html+='<div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:10px">'+statusTxt+'</div>';
+  html+='<div class="ttt-board" style="max-width:260px;margin:0 auto 12px">';
+  for(var i=0;i<9;i++){
+    var sym=cells[i]==='X'?'❌':(cells[i]==='O'?'⭕':'');
+    var ok=(s.status==='active'&&s.my_turn&&!cells[i]);
+    html+='<div class="ttt-cell"'+(ok?' onclick="tttMpClick('+i+')"':'')+'>'+sym+'</div>';
+  }
+  html+='</div>';
+  if(s.status==='active'||s.status==='waiting'){
+    html+='<button class="btn btn-ghost btn-full" onclick="resignTTT()">🏳️ Сдаться</button>';
+  } else {
+    html+='<button class="btn btn-g btn-full" onclick="tttMpGameId=null;loadTTTLobby()">← Лобби</button>';
+  }
+  el.innerHTML=html+'</div>';
+}
+async function tttMpClick(cell){
+  if(!tttMpState||!tttMpState.my_turn) return;
+  var r=await api('POST','/api/ttt/move/'+tttMpGameId+'/'+userId,{cell:cell});
+  if(r.ok&&r.data.success) loadTTTGame();
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function resignTTT(){
+  if(!tttMpGameId) return;
+  await api('POST','/api/ttt/resign/'+tttMpGameId+'/'+userId,{});
+  clearTimeout(tttMpPoll); tttMpGameId=null; loadTTTLobby();
+}
+function showInviteTTT(gid){
+  var friends=(friendsData&&friendsData.friends)||[];
+  if(!friends.length){showToast('У тебя нет друзей',true);return;}
+  var opts='';
+  for(var i=0;i<friends.length;i++) opts+='<option value="'+friends[i].user_id+'">'+esc(friends[i].name)+'</option>';
+  openModal('📨 Пригласить в TTT','<select class="modal-inp" id="ttt-invite-sel">'+opts+'</select>','Отправить',function(){
+    var sel=document.getElementById('ttt-invite-sel'); if(!sel) return;
+    var fid=parseInt(sel.value); closeModal();
+    api('POST','/api/ttt/'+gid+'/invite/'+userId,{friend_id:fid}).then(function(r){
+      if(r.ok&&r.data.success) showToast('✅ Приглашение отправлено!');
+      else showToast('❌ '+(r.data.detail||r.data.error||'Ошибка'),true);
+    });
+  });
+}
+
+// ══ BS MULTIPLAYER ════════════════════════════════════════════════════════════
+var bsMpGameId=null, bsMpState=null, bsMpPoll=null;
+
+async function loadBSLobby(){
+  var el=document.getElementById('bsmp-content'); if(!el) return;
+  el.innerHTML='<div class="spin">Загрузка...</div>';
+  try{
+    var r=await api('GET','/api/bs/lobby/'+userId);
+    if(!r.ok){el.innerHTML='<div class="no-data">Ошибка</div>';return;}
+    var lobby=r.data.lobby||[];
+    var html='<div class="card"><button class="btn btn-g btn-full" style="margin-bottom:10px" onclick="showCreateBS()">➕ Создать игру</button>';
+    if(!lobby.length){ html+='<div class="no-data">Нет открытых игр</div>'; }
+    else { for(var i=0;i<lobby.length;i++){ var g=lobby[i]; html+='<div class="bg-lobby-item"><div><b>'+esc(g.host)+'</b><div style="font-size:11px;color:var(--mt)">Ставка: '+g.bet+' см</div></div><button class="btn btn-b btn-sm" onclick="joinBSGame('+g.game_id+')">Войти</button></div>'; } }
+    el.innerHTML=html+'</div>';
+  }catch(e){el.innerHTML='<div class="no-data">Нет связи</div>';}
+}
+function showCreateBS(){
+  openModal('➕ Создать морской бой','<label class="modal-label">Ставка (см)</label><input class="modal-inp" id="bs-bet-inp" type="number" value="0" min="0">','Создать',createBSGame);
+}
+async function createBSGame(){
+  var bet=parseInt(document.getElementById('bs-bet-inp').value)||0;
+  closeModal();
+  var r=await api('POST','/api/bs/create/'+userId,{bet:bet});
+  if(r.ok&&r.data.success){ bsMpGameId=r.data.game_id; loadBSGame(); }
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function joinBSGame(gid){
+  var r=await api('POST','/api/bs/join/'+userId+'/'+gid,{});
+  if(r.ok&&r.data.success){ bsMpGameId=gid; loadBSGame(); }
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function loadBSGame(){
+  if(!bsMpGameId) return;
+  clearTimeout(bsMpPoll);
+  var r=await api('GET','/api/bs/state/'+bsMpGameId+'/'+userId);
+  if(!r.ok){showToast('❌ Ошибка',true);return;}
+  bsMpState=r.data; renderBSMp();
+  if(r.data.status==='waiting'||r.data.status==='active') bsMpPoll=setTimeout(loadBSGame,3000);
+}
+function renderBSMpGrid(results,showShips,board,clickFn,label){
+  var COLS='12345678',ROWS='ABCDEFGH',N=8;
+  var h='<div class="bs-label">'+(label||'')+'</div><div class="bs-wrap"><div class="bs-grid" style="grid-template-columns:repeat(9,28px)">';
+  h+='<div class="bs-cell bs-hdr"></div>';
+  for(var c=0;c<N;c++) h+='<div class="bs-cell bs-hdr">'+COLS[c]+'</div>';
+  for(var r2=0;r2<N;r2++){
+    h+='<div class="bs-cell bs-hdr">'+ROWS[r2]+'</div>';
+    for(var c=0;c<N;c++){
+      var idx=r2*N+c, cls='bs-cell', cont='';
+      var res=results[idx]||0;
+      if(res===2){cls+=' bs-hit';cont='🔥';}
+      else if(res===1){cls+=' bs-miss';cont='·';}
+      else if(showShips&&board&&board[idx]) cls+=' bs-ship';
+      var oc=clickFn&&res===0?' onclick="'+clickFn+'('+idx+')"':'';
+      h+='<div class="'+cls+'"'+oc+'>'+cont+'</div>';
+    }
+  }
+  return h+'</div></div>';
+}
+function renderBSMp(){
+  var el=document.getElementById('bsmp-content'); if(!el||!bsMpState) return;
+  var s=bsMpState;
+  var myBoard=s.my_board?s.my_board.split(',').map(Number):[];
+  if(s.status==='waiting'){
+    var html='<div class="card"><div class="card-title">🚢 Ожидание противника...</div>';
+    html+='<div style="text-align:center;font-size:13px;color:var(--mt);margin:10px 0">Игра #'+s.game_id+' · Ставка: '+s.bet+' см</div>';
+    html+=renderBSMpGrid(new Array(64).fill(0),true,myBoard,null,'Твой флот');
+    html+='<button class="btn btn-b btn-full" style="margin-bottom:8px" onclick="showInviteBS('+s.game_id+')">📨 Пригласить друга</button>';
+    html+='<button class="btn btn-ghost btn-full" onclick="resignBS()">🚪 Отменить</button></div>';
+    el.innerHTML=html; return;
+  }
+  var myResults=s.my_results||new Array(64).fill(0);
+  var oppResults=s.opp_results||new Array(64).fill(0);
+  var oppName=s.player1===userId?(s.p2name||'Игрок 2'):(s.p1name||'Игрок 1');
+  var statusTxt='';
+  if(s.status==='finished'){ statusTxt=s.winner_id===userId?'🏆 Ты победил!':'😞 Противник победил'; }
+  else { statusTxt=s.my_turn?'Твой ход!':'Ход противника...'; }
+  var html='<div class="card"><div class="card-title">🚢 Морской бой vs '+esc(oppName)+'</div>';
+  html+='<div class="bs-status">'+statusTxt+'</div>';
+  html+=renderBSMpGrid(myResults,true,myBoard,null,'Твои воды');
+  html+=renderBSMpGrid(oppResults,false,null,s.status==='active'&&s.my_turn?'bsMpShoot':null,'Воды врага');
+  if(s.status==='active'){
+    html+='<button class="btn btn-ghost btn-full" onclick="resignBS()">🏳️ Сдаться</button>';
+  } else {
+    html+='<button class="btn btn-g btn-full" onclick="bsMpGameId=null;loadBSLobby()">← Лобби</button>';
+  }
+  el.innerHTML=html+'</div>';
+}
+async function bsMpShoot(cell){
+  if(!bsMpState||!bsMpState.my_turn) return;
+  var r=await api('POST','/api/bs/move/'+bsMpGameId+'/'+userId,{cell:cell});
+  if(r.ok&&r.data.success){ if(r.data.win) clearTimeout(bsMpPoll); loadBSGame(); }
+  else showToast('❌ '+(r.data.error||'Ошибка'),true);
+}
+async function resignBS(){
+  if(!bsMpGameId) return;
+  await api('POST','/api/bs/resign/'+bsMpGameId+'/'+userId,{});
+  clearTimeout(bsMpPoll); bsMpGameId=null; loadBSLobby();
+}
+function showInviteBS(gid){
+  var friends=(friendsData&&friendsData.friends)||[];
+  if(!friends.length){showToast('У тебя нет друзей',true);return;}
+  var opts='';
+  for(var i=0;i<friends.length;i++) opts+='<option value="'+friends[i].user_id+'">'+esc(friends[i].name)+'</option>';
+  openModal('📨 Пригласить в морской бой','<select class="modal-inp" id="bs-invite-sel">'+opts+'</select>','Отправить',function(){
+    var sel=document.getElementById('bs-invite-sel'); if(!sel) return;
+    var fid=parseInt(sel.value); closeModal();
+    api('POST','/api/bs/'+gid+'/invite/'+userId,{friend_id:fid}).then(function(r){
+      if(r.ok&&r.data.success) showToast('✅ Приглашение отправлено!');
+      else showToast('❌ '+(r.data.detail||r.data.error||'Ошибка'),true);
+    });
+  });
 }
 
 function showInviteModal(gid){
